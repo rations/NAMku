@@ -1,0 +1,32 @@
+// NAMku plug-in factory.
+
+#include "namcontroller.h"
+#include "namids.h"
+#include "namprocessor.h"
+#include "version.h"
+
+#include "public.sdk/source/main/pluginfactory_constexpr.h"
+
+BEGIN_FACTORY_DEF (stringCompanyName, stringCompanyWeb, stringCompanyEmail, 2)
+
+DEF_CLASS (NAMku::NamkuProcessorUID, Steinberg::PClassInfo::kManyInstances,
+           kVstAudioEffectClass,
+           stringPluginName,
+           Steinberg::Vst::kDistributable,
+           "Fx|Distortion",
+           FULL_VERSION_STR,
+           kVstVersionString,
+           NAMku::NamProcessor::createInstance,
+           nullptr)
+
+DEF_CLASS (NAMku::NamkuControllerUID, Steinberg::PClassInfo::kManyInstances,
+           kVstComponentControllerClass,
+           stringPluginName "Controller",
+           0,
+           "",
+           FULL_VERSION_STR,
+           kVstVersionString,
+           NAMku::NamController::createInstance,
+           nullptr)
+
+END_FACTORY
