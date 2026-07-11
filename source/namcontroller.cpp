@@ -81,6 +81,16 @@ tresult PLUGIN_API NamController::initialize(FUnknown *context)
     slim->setPrecision(2);
     parameters.addParameter(slim);
 
+    // Input calibration (models that state their expected input level only):
+    // when on, the input gain is shifted by (level - model input level).
+    parameters.addParameter(STR16("Calibrate Input"), nullptr, 1, 0.0,
+                            Vst::ParameterInfo::kCanAutomate, kCalibrateInputId);
+    auto *calLevel = new Vst::RangeParameter(STR16("Input Calibration Level"),
+                                             kInputCalibrationLevelId, STR16("dBu"),
+                                             ranges::kCalMin, ranges::kCalMax, ranges::kCalDefault);
+    calLevel->setPrecision(1);
+    parameters.addParameter(calLevel);
+
     return kResultOk;
 }
 
@@ -93,7 +103,7 @@ tresult PLUGIN_API NamController::setComponentState(IBStream *state)
     IBStreamer streamer(state, kLittleEndian);
 
     int32 version = 0;
-    if (!streamer.readInt32(version) || version < 1 || version > 2)
+    if (!streamer.readInt32(version) || version < 1 || version > 3)
         return kResultFalse;
 
     const Vst::ParamID ids[10] = {
@@ -113,6 +123,13 @@ tresult PLUGIN_API NamController::setComponentState(IBStream *state)
         // value in its own setState, so no kMsgSetSlim round-trip is needed.
         EditController::setParamNormalized(kSlimId, v);
     }
+    if (version >= 3) { // v3 appends the input-calibration pair
+        double calOn = 0, calLevel = 0;
+        if (!streamer.readDouble(calOn) || !streamer.readDouble(calLevel))
+            return kResultFalse;
+        setParamNormalized(kCalibrateInputId, calOn);
+        setParamNormalized(kInputCalibrationLevelId, calLevel);
+    }
 
     if (char8 *modelPath = streamer.readStr8()) {
         mModelPath = modelPath;
@@ -123,6 +140,41 @@ tresult PLUGIN_API NamController::setComponentState(IBStream *state)
         delete[] irPath;
     }
     return kResultOk;
+}
+
+//------------------------------------------------------------------------
+// Retitle a parameter in place and let the host re-read the titles. The
+// sliders-only substitute for the original GUI's greyed-out controls: a
+// capture without the feature shows e.g. "Slim (n/a)".
+void NamController::retitleParam(Vst::ParamID tag, const char *title)
+{
+    Vst::Parameter *param = parameters.getParameter(tag);
+    if (!param)
+        return;
+    UString(param->getInfo().title, USTRINGSIZE(param->getInfo().title)).fromAscii(title);
+}
+
+//------------------------------------------------------------------------
+tresult PLUGIN_API NamController::notify(Vst::IMessage *message)
+{
+    const char *id = message ? message->getMessageID() : nullptr;
+    if (id && strcmp(id, kMsgModelCaps) == 0) {
+        int64 slimmable = 0, hasIn = 0, hasOut = 0;
+        Vst::IAttributeList *attrs = message->getAttributes();
+        attrs->getInt(kCapsSlimmableAttr, slimmable);
+        attrs->getInt(kCapsInLevelAttr, hasIn);
+        attrs->getInt(kCapsOutLevelAttr, hasOut);
+
+        retitleParam(kSlimId, slimmable ? "Slim" : "Slim (n/a)");
+        retitleParam(kCalibrateInputId, hasIn ? "Calibrate Input" : "Calibrate Input (n/a)");
+        retitleParam(kInputCalibrationLevelId,
+                     hasIn ? "Input Calibration Level" : "Input Calibration Level (n/a)");
+        retitleParam(kOutputModeId, hasOut ? "Output Mode" : "Output Mode (no calibration)");
+        if (componentHandler)
+            componentHandler->restartComponent(Vst::kParamTitlesChanged);
+        return kResultOk;
+    }
+    return EditController::notify(message);
 }
 
 //------------------------------------------------------------------------

@@ -27,6 +27,9 @@ public:
     // thread, not on the RT thread the parameter queue feeds.
     Steinberg::tresult PLUGIN_API
     setParamNormalized(Steinberg::Vst::ParamID tag, Steinberg::Vst::ParamValue value) SMTG_OVERRIDE;
+    // Receives the processor's model-capability message and retitles the
+    // parameters the loaded capture does not support ("… (n/a)").
+    Steinberg::tresult PLUGIN_API notify(Steinberg::Vst::IMessage *message) SMTG_OVERRIDE;
 
     // INamFileLoader
     Steinberg::tresult PLUGIN_API setModelFile(const Steinberg::char8 *path) SMTG_OVERRIDE;
@@ -44,6 +47,7 @@ public:
     REFCOUNT_METHODS(EditController)
 
 private:
+    void retitleParam(Steinberg::Vst::ParamID tag, const char *title);
     Steinberg::tresult sendPath(const char *messageID, const Steinberg::char8 *path);
     static Steinberg::tresult copyPath(const std::string &src, Steinberg::char8 *buffer,
                                        Steinberg::int32 bufferSize);

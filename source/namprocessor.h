@@ -67,6 +67,8 @@ private:
     bool loadModel(const std::string &path); // message thread only
     bool loadIr(const std::string &path);    // message thread only
     void applySlim(double v);                // message thread only
+    void sendModelCaps(bool slimmable, bool hasInputLevel,
+                       bool hasOutputLevel); // message thread only
 
     // Normalized parameter values (written by RT param handling AND by
     // setState on the message thread; atomics keep the accesses tear-free).
@@ -81,6 +83,8 @@ private:
     std::atomic<double> mNoiseGateOn{1.0};
     std::atomic<double> mOutputModeNorm{0.5}; // index 1 = Normalized
     std::atomic<double> mSlimNorm{0.0};       // applied off-RT via kMsgSetSlim
+    std::atomic<double> mCalibrateInput{0.0}; // toggle, default off
+    std::atomic<double> mCalLevelNorm{0.6};   // plain 12 dBu in -60 .. 60
 
     // Model/IR, hot-swapped from the message thread.
     std::unique_ptr<nam::DSP> mPendingModel;

@@ -199,6 +199,12 @@ void NamProcessor::handleParameterChanges(Vst::IParameterChanges *changes)
             case kSlimId:
                 mSlimNorm.store(value, std::memory_order_relaxed);
                 break;
+            case kCalibrateInputId:
+                mCalibrateInput.store(value, std::memory_order_relaxed);
+                break;
+            case kInputCalibrationLevelId:
+                mCalLevelNorm.store(value, std::memory_order_relaxed);
+                break;
         }
     }
 }
@@ -254,8 +260,14 @@ tresult PLUGIN_API NamProcessor::process(Vst::ProcessData &data)
 //------------------------------------------------------------------------
 void NamProcessor::applyDsp(float *in, float *out, int32 numSamples)
 {
-    const double inputGainDb =
+    const double calLevelDbu =
+        denorm(mCalLevelNorm.load(std::memory_order_relaxed), ranges::kCalMin, ranges::kCalMax);
+    double inputGainDb =
         denorm(mInputGainNorm.load(std::memory_order_relaxed), ranges::kGainMin, ranges::kGainMax);
+    // Input calibration (models that state their expected input level only):
+    // shift the interface's level to the level the capture was made at.
+    if (mModel && mModel->HasInputLevel() && mCalibrateInput.load(std::memory_order_relaxed) > 0.5)
+        inputGainDb += calLevelDbu - mModel->GetInputLevel();
     const double outputGainDb =
         denorm(mOutputGainNorm.load(std::memory_order_relaxed), ranges::kGainMin, ranges::kGainMax);
     const double inputGain = dbToLinear(inputGainDb);
@@ -323,13 +335,32 @@ void NamProcessor::applyDsp(float *in, float *out, int32 numSamples)
         // Normalized: bring the model's measured loudness to -18 dB.
         modeGain = dbToLinear(-18.0 - mModel->GetLoudness());
     } else if (outMode == 2 && mModel && mModel->HasOutputLevel()) {
-        // Calibrated: use the model's stated output level (dBu).
-        modeGain = dbToLinear(mModel->GetOutputLevel() - 12.0);
+        // Calibrated: the model's stated output level relative to the
+        // user's input calibration level (matches the original plug-in).
+        modeGain = dbToLinear(mModel->GetOutputLevel() - calLevelDbu);
     }
     const double finalGain = outputGain * modeGain;
     const DSP_SAMPLE *finalBuf = irOutput[0];
     for (int32 i = 0; i < numSamples; ++i)
         out[i] = static_cast<float>(finalBuf[i] * finalGain);
+}
+
+//------------------------------------------------------------------------
+// Tell the controller which optional features the loaded capture supports,
+// so it can retitle the unsupported parameters. Message thread only; runs
+// after every model load or clear. Capabilities are read from the new model
+// BEFORE it is staged for the RT swap, so no model slot is touched here.
+void NamProcessor::sendModelCaps(bool slimmable, bool hasInputLevel, bool hasOutputLevel)
+{
+    Steinberg::IPtr<Vst::IMessage> message = owned(allocateMessage());
+    if (!message)
+        return;
+    message->setMessageID(kMsgModelCaps);
+    Vst::IAttributeList *attrs = message->getAttributes();
+    attrs->setInt(kCapsSlimmableAttr, slimmable ? 1 : 0);
+    attrs->setInt(kCapsInLevelAttr, hasInputLevel ? 1 : 0);
+    attrs->setInt(kCapsOutLevelAttr, hasOutputLevel ? 1 : 0);
+    sendMessage(message);
 }
 
 //------------------------------------------------------------------------
@@ -339,6 +370,7 @@ bool NamProcessor::loadModel(const std::string &path)
         mPendingModel.reset();
         mModelPath.clear();
         mModelPending.store(true, std::memory_order_release);
+        sendModelCaps(false, false, false);
         return true;
     }
     try {
@@ -351,9 +383,13 @@ bool NamProcessor::loadModel(const std::string &path)
         // model before it is staged for the RT swap.
         if (auto *s = wrapped->GetSlimmableModel())
             s->SetSlimmableSize(mSlimNorm.load(std::memory_order_relaxed));
+        const bool slimmable = wrapped->GetSlimmableModel() != nullptr;
+        const bool hasIn = wrapped->HasInputLevel();
+        const bool hasOut = wrapped->HasOutputLevel();
         mPendingModel = std::move(wrapped);
         mModelPath = path;
         mModelPending.store(true, std::memory_order_release);
+        sendModelCaps(slimmable, hasIn, hasOut);
         return true;
     } catch (const std::exception &) {
         return false;
@@ -440,7 +476,7 @@ tresult PLUGIN_API NamProcessor::setState(IBStream *state)
     IBStreamer streamer(state, kLittleEndian);
 
     int32 version = 0;
-    if (!streamer.readInt32(version) || version < 1 || version > 2)
+    if (!streamer.readInt32(version) || version < 1 || version > 3)
         return kResultFalse;
 
     double values[10] = {0};
@@ -466,6 +502,13 @@ tresult PLUGIN_API NamProcessor::setState(IBStream *state)
         return kResultFalse;
     mSlimNorm.store(slim, std::memory_order_relaxed);
 
+    // Version 3 appends the input-calibration pair.
+    double calOn = 0.0, calLevel = 0.6; // defaults: off, 12 dBu
+    if (version >= 3 && (!streamer.readDouble(calOn) || !streamer.readDouble(calLevel)))
+        return kResultFalse;
+    mCalibrateInput.store(calOn, std::memory_order_relaxed);
+    mCalLevelNorm.store(calLevel, std::memory_order_relaxed);
+
     // Paths (written with writeStr8: int32 length + bytes). Missing entries
     // (old/foreign state) are tolerated: paths simply stay empty.
     if (char8 *modelPath = streamer.readStr8()) {
@@ -486,7 +529,7 @@ tresult PLUGIN_API NamProcessor::getState(IBStream *state)
         return kResultFalse;
     IBStreamer streamer(state, kLittleEndian);
 
-    streamer.writeInt32(2); // state version (2 = v1 + Slim)
+    streamer.writeInt32(3); // state version (2 = +Slim, 3 = +input calibration)
 
     streamer.writeDouble(mBypass.load(std::memory_order_relaxed));
     streamer.writeDouble(mInputGainNorm.load(std::memory_order_relaxed));
@@ -498,7 +541,9 @@ tresult PLUGIN_API NamProcessor::getState(IBStream *state)
     streamer.writeDouble(mToneStackOn.load(std::memory_order_relaxed));
     streamer.writeDouble(mNoiseGateOn.load(std::memory_order_relaxed));
     streamer.writeDouble(mOutputModeNorm.load(std::memory_order_relaxed));
-    streamer.writeDouble(mSlimNorm.load(std::memory_order_relaxed)); // v2
+    streamer.writeDouble(mSlimNorm.load(std::memory_order_relaxed));       // v2
+    streamer.writeDouble(mCalibrateInput.load(std::memory_order_relaxed)); // v3
+    streamer.writeDouble(mCalLevelNorm.load(std::memory_order_relaxed));   // v3
 
     streamer.writeStr8(mModelPath.c_str());
     streamer.writeStr8(mIrPath.c_str());
