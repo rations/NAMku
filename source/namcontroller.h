@@ -8,7 +8,8 @@
 
 #include <string>
 
-namespace NAMku {
+namespace NAMku
+{
 
 //------------------------------------------------------------------------
 class NamController : public Steinberg::Vst::EditController, public INamFileLoader
@@ -21,6 +22,11 @@ public:
 
     Steinberg::tresult PLUGIN_API initialize(Steinberg::FUnknown *context) SMTG_OVERRIDE;
     Steinberg::tresult PLUGIN_API setComponentState(Steinberg::IBStream *state) SMTG_OVERRIDE;
+    // Overridden to forward Slim changes to the processor as a message: its
+    // DSP application (a partial network rebuild) must run on the message
+    // thread, not on the RT thread the parameter queue feeds.
+    Steinberg::tresult PLUGIN_API
+    setParamNormalized(Steinberg::Vst::ParamID tag, Steinberg::Vst::ParamValue value) SMTG_OVERRIDE;
 
     // INamFileLoader
     Steinberg::tresult PLUGIN_API setModelFile(const Steinberg::char8 *path) SMTG_OVERRIDE;
@@ -33,7 +39,7 @@ public:
     //---Interface---------
     OBJ_METHODS(NamController, EditController)
     DEFINE_INTERFACES
-        DEF_INTERFACE(INamFileLoader)
+    DEF_INTERFACE(INamFileLoader)
     END_DEFINE_INTERFACES(EditController)
     REFCOUNT_METHODS(EditController)
 

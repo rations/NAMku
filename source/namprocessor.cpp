@@ -36,9 +36,11 @@ static inline void namku_set_denormal_mode(void)
 
 using namespace Steinberg;
 
-namespace NAMku {
+namespace NAMku
+{
 
-namespace {
+namespace
+{
 
 inline double denorm(double norm, double min, double max)
 {
@@ -77,8 +79,7 @@ tresult PLUGIN_API NamProcessor::initialize(FUnknown *context)
 
 //------------------------------------------------------------------------
 tresult PLUGIN_API NamProcessor::setBusArrangements(Vst::SpeakerArrangement *inputs, int32 numIns,
-                                                    Vst::SpeakerArrangement *outputs,
-                                                    int32 numOuts)
+                                                    Vst::SpeakerArrangement *outputs, int32 numOuts)
 {
     // Accepted layouts: mono or stereo in (channel 0 is used), mono or
     // stereo out (mono result is copied to every output channel).
@@ -163,18 +164,41 @@ void NamProcessor::handleParameterChanges(Vst::IParameterChanges *changes)
         if (numPoints < 1 || queue->getPoint(numPoints - 1, sampleOffset, value) != kResultTrue)
             continue;
         switch (queue->getParameterId()) {
-            case kBypassId: mBypass.store(value, std::memory_order_relaxed); break;
-            case kInputGainId: mInputGainNorm.store(value, std::memory_order_relaxed); break;
-            case kOutputGainId: mOutputGainNorm.store(value, std::memory_order_relaxed); break;
+            case kBypassId:
+                mBypass.store(value, std::memory_order_relaxed);
+                break;
+            case kInputGainId:
+                mInputGainNorm.store(value, std::memory_order_relaxed);
+                break;
+            case kOutputGainId:
+                mOutputGainNorm.store(value, std::memory_order_relaxed);
+                break;
             case kNoiseGateThresholdId:
                 mNgThresholdNorm.store(value, std::memory_order_relaxed);
                 break;
-            case kBassId: mBassNorm.store(value, std::memory_order_relaxed); break;
-            case kMiddleId: mMiddleNorm.store(value, std::memory_order_relaxed); break;
-            case kTrebleId: mTrebleNorm.store(value, std::memory_order_relaxed); break;
-            case kToneStackOnId: mToneStackOn.store(value, std::memory_order_relaxed); break;
-            case kNoiseGateOnId: mNoiseGateOn.store(value, std::memory_order_relaxed); break;
-            case kOutputModeId: mOutputModeNorm.store(value, std::memory_order_relaxed); break;
+            case kBassId:
+                mBassNorm.store(value, std::memory_order_relaxed);
+                break;
+            case kMiddleId:
+                mMiddleNorm.store(value, std::memory_order_relaxed);
+                break;
+            case kTrebleId:
+                mTrebleNorm.store(value, std::memory_order_relaxed);
+                break;
+            case kToneStackOnId:
+                mToneStackOn.store(value, std::memory_order_relaxed);
+                break;
+            case kNoiseGateOnId:
+                mNoiseGateOn.store(value, std::memory_order_relaxed);
+                break;
+            case kOutputModeId:
+                mOutputModeNorm.store(value, std::memory_order_relaxed);
+                break;
+            // Slim is only recorded here (for getState); the DSP application
+            // is NOT RT-safe and arrives separately via kMsgSetSlim.
+            case kSlimId:
+                mSlimNorm.store(value, std::memory_order_relaxed);
+                break;
         }
     }
 }
@@ -323,6 +347,10 @@ bool NamProcessor::loadModel(const std::string &path)
             return false;
         auto wrapped = std::make_unique<ResamplingNAM>(std::move(raw), mSampleRate);
         wrapped->Reset(mSampleRate, mMaxBlockSize);
+        // Slimmable (A2) models: bake the current Slim setting into the new
+        // model before it is staged for the RT swap.
+        if (auto *s = wrapped->GetSlimmableModel())
+            s->SetSlimmableSize(mSlimNorm.load(std::memory_order_relaxed));
         mPendingModel = std::move(wrapped);
         mModelPath = path;
         mModelPending.store(true, std::memory_order_release);
@@ -361,6 +389,19 @@ tresult PLUGIN_API NamProcessor::notify(Vst::IMessage *message)
         return kInvalidArgument;
 
     const char *id = message->getMessageID();
+
+    // Slim: apply on this (message) thread — SetSlimmableSize stages a
+    // partial network rebuild that the model's own process() installs
+    // RT-safely, but the staging itself allocates and must stay off-RT.
+    if (id && strcmp(id, kMsgSetSlim) == 0) {
+        double v = 0.0;
+        if (message->getAttributes()->getFloat(kSlimAttr, v) != kResultOk)
+            return kResultFalse;
+        mSlimNorm.store(v, std::memory_order_relaxed);
+        applySlim(v);
+        return kResultOk;
+    }
+
     const bool isModel = id && strcmp(id, kMsgLoadModel) == 0;
     const bool isIr = id && strcmp(id, kMsgLoadIr) == 0;
     if (!isModel && !isIr)
@@ -378,6 +419,20 @@ tresult PLUGIN_API NamProcessor::notify(Vst::IMessage *message)
 }
 
 //------------------------------------------------------------------------
+void NamProcessor::applySlim(double v)
+{
+    // Message thread only (serialized with loadModel/setState by the host).
+    // While a freshly staged model awaits the RT pending-swap the two model
+    // slots may be exchanged at any instant, so leave them alone: the staged
+    // model was already built with the current Slim value in loadModel().
+    if (mModelPending.load(std::memory_order_acquire))
+        return;
+    if (auto *r = dynamic_cast<ResamplingNAM *>(mModel.get()))
+        if (auto *s = r->GetSlimmableModel())
+            s->SetSlimmableSize(v);
+}
+
+//------------------------------------------------------------------------
 tresult PLUGIN_API NamProcessor::setState(IBStream *state)
 {
     if (!state)
@@ -385,7 +440,7 @@ tresult PLUGIN_API NamProcessor::setState(IBStream *state)
     IBStreamer streamer(state, kLittleEndian);
 
     int32 version = 0;
-    if (!streamer.readInt32(version) || version != 1)
+    if (!streamer.readInt32(version) || version < 1 || version > 2)
         return kResultFalse;
 
     double values[10] = {0};
@@ -403,6 +458,13 @@ tresult PLUGIN_API NamProcessor::setState(IBStream *state)
     mToneStackOn.store(values[7], std::memory_order_relaxed);
     mNoiseGateOn.store(values[8], std::memory_order_relaxed);
     mOutputModeNorm.store(values[9], std::memory_order_relaxed);
+
+    // Version 2 appends Slim (v1 states default to 0). Stored before the
+    // model loads below so a restored slimmable model is built with it.
+    double slim = 0.0;
+    if (version >= 2 && !streamer.readDouble(slim))
+        return kResultFalse;
+    mSlimNorm.store(slim, std::memory_order_relaxed);
 
     // Paths (written with writeStr8: int32 length + bytes). Missing entries
     // (old/foreign state) are tolerated: paths simply stay empty.
@@ -424,7 +486,7 @@ tresult PLUGIN_API NamProcessor::getState(IBStream *state)
         return kResultFalse;
     IBStreamer streamer(state, kLittleEndian);
 
-    streamer.writeInt32(1); // state version
+    streamer.writeInt32(2); // state version (2 = v1 + Slim)
 
     streamer.writeDouble(mBypass.load(std::memory_order_relaxed));
     streamer.writeDouble(mInputGainNorm.load(std::memory_order_relaxed));
@@ -436,6 +498,7 @@ tresult PLUGIN_API NamProcessor::getState(IBStream *state)
     streamer.writeDouble(mToneStackOn.load(std::memory_order_relaxed));
     streamer.writeDouble(mNoiseGateOn.load(std::memory_order_relaxed));
     streamer.writeDouble(mOutputModeNorm.load(std::memory_order_relaxed));
+    streamer.writeDouble(mSlimNorm.load(std::memory_order_relaxed)); // v2
 
     streamer.writeStr8(mModelPath.c_str());
     streamer.writeStr8(mIrPath.c_str());

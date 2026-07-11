@@ -9,7 +9,8 @@
 #include "pluginterfaces/base/funknown.h"
 #include "pluginterfaces/vst/vsttypes.h"
 
-namespace NAMku {
+namespace NAMku
+{
 
 // Parameter IDs. Never change these after a release — projects embed them.
 enum ParamIDs : Steinberg::Vst::ParamID {
@@ -23,11 +24,13 @@ enum ParamIDs : Steinberg::Vst::ParamID {
     kToneStackOnId = 107,        // toggle, default on
     kNoiseGateOnId = 108,        // toggle, default on
     kOutputModeId = 109,         // Raw / Normalized / Calibrated, default Normalized
+    kSlimId = 110,               // 0 .. 1, default 0 — slimmable (A2) models only
 };
 
 // Plain-value ranges shared by the processor (denormalization) and the
 // controller (RangeParameter setup). Keep the two sides in sync via these.
-namespace ranges {
+namespace ranges
+{
 inline constexpr double kGainMin = -40.0, kGainMax = 40.0, kGainDefault = 0.0;
 inline constexpr double kNgMin = -100.0, kNgMax = 0.0, kNgDefault = -80.0;
 inline constexpr double kToneMin = 0.0, kToneMax = 10.0, kToneDefault = 5.0;
@@ -38,6 +41,13 @@ inline constexpr double kToneMin = 0.0, kToneMax = 10.0, kToneDefault = 5.0;
 inline constexpr const char *kMsgLoadModel = "NAMkuLoadModel";
 inline constexpr const char *kMsgLoadIr = "NAMkuLoadIR";
 inline constexpr const char *kMsgPathAttr = "path";
+
+// Slim travels controller -> processor as a message too (attribute "slim",
+// setFloat): SetSlimmableSize rebuilds part of the network, which is
+// thread-safe but NOT RT-safe, so it must run on the message thread — the
+// RT parameter queue only carries the value for state bookkeeping.
+inline constexpr const char *kMsgSetSlim = "NAMkuSetSlim";
+inline constexpr const char *kSlimAttr = "slim";
 
 static DECLARE_UID(NamkuProcessorUID, 0x80781530, 0x12284EB4, 0x89676AE5, 0x52A4FB2B);
 static DECLARE_UID(NamkuControllerUID, 0xFD4220E5, 0xACFD437A, 0x9318389D, 0x1DED6791);

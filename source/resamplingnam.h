@@ -2,8 +2,7 @@
 // conversion via AudioDSPTools' ResamplingContainer (Lanczos, A=12). NAM
 // models typically run at 48 kHz; the session may run at any rate.
 //
-// Ported from the namix (Linux) plug-in's proven implementation, minus the
-// slimmable-model support (future work on Haiku).
+// Ported from the namix (Linux) plug-in's proven implementation.
 
 #pragma once
 
@@ -13,17 +12,20 @@
 #ifndef DEFAULT_BLOCK_SIZE
 #define DEFAULT_BLOCK_SIZE 128
 #endif
-namespace iplug {
+namespace iplug
+{
 static constexpr double PI = 3.14159265358979323846;
 }
 
 #include "NAM/dsp.h"
+#include "NAM/slimmable.h"
 #include "ResamplingContainer/ResamplingContainer.h"
 
 #include <cmath>
 #include <memory>
 
-namespace NAMku {
+namespace NAMku
+{
 
 inline double GetNamEncapsulatedSampleRate(const std::unique_ptr<nam::DSP> &m)
 {
@@ -73,7 +75,17 @@ public:
         mEncapsulated->ResetAndPrewarm(encRate, encBlock);
     }
 
-    int GetLatency() const { return mResampler.GetLatency(); }
+    int GetLatency() const
+    {
+        return mResampler.GetLatency();
+    }
+
+    // Non-null when the wrapped model supports dynamic size reduction (the
+    // "slimmable" A2 WaveNet variant); the Slim parameter targets this.
+    nam::SlimmableModel *GetSlimmableModel()
+    {
+        return dynamic_cast<nam::SlimmableModel *>(mEncapsulated.get());
+    }
 
 private:
     std::unique_ptr<nam::DSP> mEncapsulated;

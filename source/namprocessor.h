@@ -24,7 +24,8 @@
 #include <string>
 #include <vector>
 
-namespace NAMku {
+namespace NAMku
+{
 
 class ResamplingNAM;
 
@@ -65,19 +66,21 @@ private:
     void applyDsp(float *in, float *out, Steinberg::int32 numSamples);
     bool loadModel(const std::string &path); // message thread only
     bool loadIr(const std::string &path);    // message thread only
+    void applySlim(double v);                // message thread only
 
     // Normalized parameter values (written by RT param handling AND by
     // setState on the message thread; atomics keep the accesses tear-free).
     std::atomic<double> mBypass{0.0};
-    std::atomic<double> mInputGainNorm{0.5};    // plain 0 dB
-    std::atomic<double> mOutputGainNorm{0.5};   // plain 0 dB
-    std::atomic<double> mNgThresholdNorm{0.2};  // plain -80 dB
-    std::atomic<double> mBassNorm{0.5};         // plain 5
-    std::atomic<double> mMiddleNorm{0.5};       // plain 5
-    std::atomic<double> mTrebleNorm{0.5};       // plain 5
+    std::atomic<double> mInputGainNorm{0.5};   // plain 0 dB
+    std::atomic<double> mOutputGainNorm{0.5};  // plain 0 dB
+    std::atomic<double> mNgThresholdNorm{0.2}; // plain -80 dB
+    std::atomic<double> mBassNorm{0.5};        // plain 5
+    std::atomic<double> mMiddleNorm{0.5};      // plain 5
+    std::atomic<double> mTrebleNorm{0.5};      // plain 5
     std::atomic<double> mToneStackOn{1.0};
     std::atomic<double> mNoiseGateOn{1.0};
-    std::atomic<double> mOutputModeNorm{0.5};   // index 1 = Normalized
+    std::atomic<double> mOutputModeNorm{0.5}; // index 1 = Normalized
+    std::atomic<double> mSlimNorm{0.0};       // applied off-RT via kMsgSetSlim
 
     // Model/IR, hot-swapped from the message thread.
     std::unique_ptr<nam::DSP> mPendingModel;

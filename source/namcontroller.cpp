@@ -12,7 +12,8 @@
 
 using namespace Steinberg;
 
-namespace NAMku {
+namespace NAMku
+{
 
 // The one and only definition of the INamFileLoader interface ID.
 DEF_CLASS_IID(INamFileLoader)
@@ -28,21 +29,21 @@ tresult PLUGIN_API NamController::initialize(FUnknown *context)
                             Vst::ParameterInfo::kCanAutomate | Vst::ParameterInfo::kIsBypass,
                             kBypassId);
 
-    auto *inGain = new Vst::RangeParameter(STR16("Input Gain"), kInputGainId, STR16("dB"),
-                                           ranges::kGainMin, ranges::kGainMax,
-                                           ranges::kGainDefault);
+    auto *inGain =
+        new Vst::RangeParameter(STR16("Input Gain"), kInputGainId, STR16("dB"), ranges::kGainMin,
+                                ranges::kGainMax, ranges::kGainDefault);
     inGain->setPrecision(1);
     parameters.addParameter(inGain);
 
-    auto *outGain = new Vst::RangeParameter(STR16("Output Gain"), kOutputGainId, STR16("dB"),
-                                            ranges::kGainMin, ranges::kGainMax,
-                                            ranges::kGainDefault);
+    auto *outGain =
+        new Vst::RangeParameter(STR16("Output Gain"), kOutputGainId, STR16("dB"), ranges::kGainMin,
+                                ranges::kGainMax, ranges::kGainDefault);
     outGain->setPrecision(1);
     parameters.addParameter(outGain);
 
-    auto *ngThresh = new Vst::RangeParameter(STR16("Noise Gate"), kNoiseGateThresholdId,
-                                             STR16("dB"), ranges::kNgMin, ranges::kNgMax,
-                                             ranges::kNgDefault);
+    auto *ngThresh =
+        new Vst::RangeParameter(STR16("Noise Gate"), kNoiseGateThresholdId, STR16("dB"),
+                                ranges::kNgMin, ranges::kNgMax, ranges::kNgDefault);
     ngThresh->setPrecision(1);
     parameters.addParameter(ngThresh);
 
@@ -61,8 +62,8 @@ tresult PLUGIN_API NamController::initialize(FUnknown *context)
     treble->setPrecision(1);
     parameters.addParameter(treble);
 
-    parameters.addParameter(STR16("Tone Stack"), nullptr, 1, 1.0,
-                            Vst::ParameterInfo::kCanAutomate, kToneStackOnId);
+    parameters.addParameter(STR16("Tone Stack"), nullptr, 1, 1.0, Vst::ParameterInfo::kCanAutomate,
+                            kToneStackOnId);
     parameters.addParameter(STR16("Noise Gate On"), nullptr, 1, 1.0,
                             Vst::ParameterInfo::kCanAutomate, kNoiseGateOnId);
 
@@ -72,6 +73,13 @@ tresult PLUGIN_API NamController::initialize(FUnknown *context)
     outputMode->appendString(STR16("Calibrated"));
     outputMode->setNormalized(0.5); // default: Normalized
     parameters.addParameter(outputMode);
+
+    // Slim (0 .. 1, default 0): dynamic size reduction on slimmable (A2)
+    // models — a no-op on models that don't support it, matching the
+    // original plug-in (whose GUI shows the knob only for slimmable models).
+    auto *slim = new Vst::RangeParameter(STR16("Slim"), kSlimId, nullptr, 0.0, 1.0, 0.0);
+    slim->setPrecision(2);
+    parameters.addParameter(slim);
 
     return kResultOk;
 }
@@ -85,18 +93,25 @@ tresult PLUGIN_API NamController::setComponentState(IBStream *state)
     IBStreamer streamer(state, kLittleEndian);
 
     int32 version = 0;
-    if (!streamer.readInt32(version) || version != 1)
+    if (!streamer.readInt32(version) || version < 1 || version > 2)
         return kResultFalse;
 
-    const Vst::ParamID ids[10] = {kBypassId,    kInputGainId,   kOutputGainId,
-                                  kNoiseGateThresholdId, kBassId, kMiddleId,
-                                  kTrebleId,    kToneStackOnId, kNoiseGateOnId,
-                                  kOutputModeId};
+    const Vst::ParamID ids[10] = {
+        kBypassId, kInputGainId, kOutputGainId,  kNoiseGateThresholdId, kBassId,
+        kMiddleId, kTrebleId,    kToneStackOnId, kNoiseGateOnId,        kOutputModeId};
     for (Vst::ParamID id : ids) {
         double v = 0;
         if (!streamer.readDouble(v))
             return kResultFalse;
         setParamNormalized(id, v);
+    }
+    if (version >= 2) { // v2 appends Slim
+        double v = 0;
+        if (!streamer.readDouble(v))
+            return kResultFalse;
+        // Base-class call on purpose: the processor already applied this
+        // value in its own setState, so no kMsgSetSlim round-trip is needed.
+        EditController::setParamNormalized(kSlimId, v);
     }
 
     if (char8 *modelPath = streamer.readStr8()) {
@@ -108,6 +123,23 @@ tresult PLUGIN_API NamController::setComponentState(IBStream *state)
         delete[] irPath;
     }
     return kResultOk;
+}
+
+//------------------------------------------------------------------------
+tresult PLUGIN_API NamController::setParamNormalized(Vst::ParamID tag, Vst::ParamValue value)
+{
+    tresult result = EditController::setParamNormalized(tag, value);
+    if (tag == kSlimId && result == kResultOk) {
+        // Hand the new size to the processor's message thread; the RT
+        // parameter queue delivers the same value for state bookkeeping only.
+        IPtr<Vst::IMessage> message = owned(allocateMessage());
+        if (message) {
+            message->setMessageID(kMsgSetSlim);
+            message->getAttributes()->setFloat(kSlimAttr, value);
+            sendMessage(message);
+        }
+    }
+    return result;
 }
 
 //------------------------------------------------------------------------
