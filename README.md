@@ -42,6 +42,14 @@ cp -r build/VST3/Release/NAMku.vst3 ~/config/non-packaged/add-ons/vst3/
 
 NAMku also builds as a CMake subdirectory of VST3-haiku itself.
 
+## Install / packaging (Haiku)
+
+- From source: `./build-from-source.sh` (installs `NAMku.vst3` to
+  `~/config/non-packaged/add-ons/vst3`).
+- Prebuilt package: `packaging/make-hpkg.sh` → `namku-0.1.0-1-x86_64.hpkg`
+  (`pkgman install ./namku-*.hpkg`). HaikuPorts recipe: `packaging/namku-0.1.0.recipe`.
+- See the stack overview in `jackDAW-haiku/STACK.md`.
+
 ## Credits and licenses
 
 - NAMku: MIT (see `LICENSE`)

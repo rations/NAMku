@@ -1,0 +1,47 @@
+# HaikuPorts recipe for NAMku (Neural Amp Modeler VST3 plug-in).
+#
+# NOT YET VALIDATED with haikuporter. Two things to finish on the target:
+#   1. Pin SOURCE_URI / SOURCE_URI_2 to tags or commits and add CHECKSUM_SHA256.
+#   2. NAMku builds against the VST3-haiku SDK. This recipe fetches it as a second
+#      source and points VST3_SDK_DIR at it; confirm the extracted path/var wiring
+#      with `haikuporter -c namku` (the $sourceDir2 layout).
+SUMMARY="NAMku - Neural Amp Modeler VST3 plug-in (Haiku)"
+DESCRIPTION="A Neural Amp Modeler (NAM) player as a native VST3 plug-in: loads .nam \
+captures and impulse responses. Vendors NeuralAmpModelerCore/AudioDSPTools (MIT) and \
+Eigen (MPL 2.0); the Steinberg VST3 SDK is linked statically (MIT)."
+HOMEPAGE="https://github.com/rations/NAMku"
+COPYRIGHT="2026 rations; Steven Atkinson; 2025 Steinberg Media Technologies GmbH"
+LICENSE="MIT
+	MPL 2.0"
+REVISION="1"
+SOURCE_URI="git+https://github.com/rations/NAMku#master"
+SOURCE_DIR="NAMku"
+# Second source: the VST3-haiku SDK NAMku builds against.
+SOURCE_URI_2="git+https://github.com/rations/VST3-haiku#master"
+SOURCE_DIR_2="VST3-haiku"
+ARCHITECTURES="x86_64"
+
+PROVIDES="
+	namku = 0.1.0
+	"
+REQUIRES="
+	haiku
+	"
+BUILD_REQUIRES="
+	haiku_devel
+	cmd:cmake
+	cmd:ninja
+	"
+
+BUILD()
+{
+	cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+		-DVST3_SDK_DIR="$sourceDir2/vst3sdk"
+	ninja -C build
+}
+
+INSTALL()
+{
+	mkdir -p $addOnsDir/vst3
+	cp -r build/VST3/Release/NAMku.vst3 $addOnsDir/vst3/
+}

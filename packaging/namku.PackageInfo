@@ -1,0 +1,28 @@
+name			namku
+version			0.1.0-1
+architecture	x86_64
+summary			"NAMku - Neural Amp Modeler VST3 plug-in (Haiku)"
+description		"A Neural Amp Modeler (NAM) player as a native VST3 plug-in: loads .nam
+amp/pedal captures and impulse-response .wav files. Vendors NeuralAmpModelerCore and
+AudioDSPTools (MIT) and Eigen (MPL 2.0); the Steinberg VST3 SDK is linked statically (MIT).
+Install alongside a VST3 host such as JackDAW."
+packager		"rations <ehqcar@proton.me>"
+vendor			"rations"
+copyrights {
+	"2026 rations"
+	"Steven Atkinson (NeuralAmpModelerCore, AudioDSPTools)"
+	"2025 Steinberg Media Technologies GmbH"
+}
+licenses {
+	"MIT"
+	"MPL 2.0"
+}
+provides {
+	namku = 0.1.0
+}
+requires {
+	haiku
+}
+urls {
+	"https://github.com/rations/NAMku"
+}
