@@ -15,7 +15,7 @@ copyrights {
 }
 licenses {
 	"MIT"
-	"MPL 2.0"
+	"MPL v2.0"
 }
 provides {
 	namku = 0.1.0
