@@ -52,7 +52,7 @@ NAMku also builds as a CMake subdirectory of VST3-haiku itself.
 
 ## Credits and licenses
 
-- NAMku: MIT (see `LICENSE`)
+- NAMku: MIT (see `LICENSE`); third-party attribution in `NOTICE`
 - [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore)
   and [AudioDSPTools](https://github.com/sdatkinson/AudioDSPTools) by Steven
   Atkinson — MIT, vendored under `deps/`
