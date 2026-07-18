@@ -1,0 +1,5 @@
+# Build artifacts from bench/Makefile (see its header for the variants).
+nambench
+nambench-avx
+nambench-float
+nambench-fast
