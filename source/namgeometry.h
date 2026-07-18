@@ -36,22 +36,24 @@ struct KnobSpec {
     Steinberg::Vst::ParamID id;
     int cx, cy, r; // face center and radius
     const char *label;
+    const char *unit; // appended to the value readout (nullptr = none)
 };
 constexpr int kKnobCount = 6;
 constexpr KnobSpec kKnobs[kKnobCount] = {
-    {kInputGainId, 92, 148, 33, "Input"},          //
-    {kNoiseGateThresholdId, 175, 148, 33, "Gate"}, //
-    {kBassId, 258, 148, 33, "Bass"},               //
-    {kMiddleId, 342, 148, 33, "Middle"},           //
-    {kTrebleId, 425, 148, 33, "Treble"},           //
-    {kOutputGainId, 508, 148, 33, "Output"},       //
+    {kInputGainId, 92, 165, 37, "Input", "dB"},               //
+    {kNoiseGateThresholdId, 175, 165, 37, "Threshold", "dB"}, //
+    {kBassId, 258, 165, 37, "Bass", nullptr},                 //
+    {kMiddleId, 342, 165, 37, "Middle", nullptr},             //
+    {kTrebleId, 425, 165, 37, "Treble", nullptr},             //
+    {kOutputGainId, 508, 165, 37, "Output", "dB"},            //
 };
-// Knob pointer/arc: ~270-degree sweep with a dead zone at the bottom. Angles
-// in degrees, 0 = straight up, positive = clockwise (see namview.cpp).
+// Knob value arc + pointer: ~270-degree sweep with a dead zone at the bottom.
+// Angles in degrees, 0 = straight up, positive = clockwise (see namview.cpp).
 constexpr double kKnobSweepDeg = 270.0;
-constexpr double kKnobPointerFrac = 0.72; // pointer length / radius
-constexpr int kKnobValueDY = 46;          // value baseline below face center
-constexpr int kKnobLabelDY = 64;          // label baseline below face center
+constexpr double kKnobPointerFrac = 0.82; // pointer tip / radius
+constexpr double kKnobArcFrac = 0.92;     // value-arc radius / knob radius
+constexpr int kKnobLabelDY = 52;          // label baseline above face center
+constexpr int kKnobValueDY = 54;          // value baseline below face center
 
 // --- Toggle switches (2) ---
 struct ToggleSpec {
@@ -72,10 +74,10 @@ struct FileRow {
     const char *placeholder;
     const char *ext; // file-panel filter (no dot)
 };
-constexpr FileRow kModelRow = {200, 309, 200, 30, "Select model...", "nam"};
-constexpr FileRow kIrRow = {200, 347, 200, 30, "Select IR...", "wav"};
-constexpr int kFileGlyph = 16;  // load glyph box at the row's left
-constexpr int kClearGlyph = 14; // clear (x) box at the row's right
+// Rows are 400 px wide, centered in the content area (x[100,500]) — the exact
+// original geometry (fileWidth 200 -> 2*200 centered), matching the Linux port.
+constexpr FileRow kModelRow = {100, 309, 400, 30, "Select model...", "nam"};
+constexpr FileRow kIrRow = {100, 347, 400, 30, "Select IR...", "wav"};
 
 // --- Level meters (input / output) ---
 struct MeterRect {
@@ -91,9 +93,13 @@ constexpr int kGearCX = 556, kGearCY = 46, kGearR = 13;
 // --- Settings overlay (gear) ---
 constexpr int kSettingsX = 120, kSettingsY = 66, kSettingsW = 360, kSettingsH = 268;
 
-// --- Slim: icon by the model row (slimmable models only) + overlay knob ---
-constexpr int kSlimIconX = 410, kSlimIconY = 313, kSlimIconS = 22;
+// --- Slim: icon in the 520 gap by the model row (slimmable only) + overlay ---
+// Centered vertically on the model row (y 309..339 -> icon 314..334).
+constexpr int kSlimIconX = 520, kSlimIconY = 314, kSlimIconW = 40, kSlimIconH = 20;
 constexpr int kSlimKnobCX = 300, kSlimKnobCY = 186, kSlimKnobR = 42;
+
+// --- Status icons to the left of the file rows (model amp icon / IR on-off) ---
+constexpr int kRowIconCX = 74; // center x of the left-of-row status icon
 
 } // namespace geo
 } // namespace NAMku

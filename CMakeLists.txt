@@ -110,10 +110,19 @@ smtg_target_configure_version_file(NAMku)
 
 # Editor art layers (imported by gui/make_assets.sh, committed) -> bundle
 # Contents/Resources/gui/.
-file(GLOB NAMKU_GUI_PNGS "${CMAKE_CURRENT_SOURCE_DIR}/resource/gui/*.png")
+file(GLOB NAMKU_GUI_PNGS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resource/gui/*.png")
 smtg_target_add_plugin_resources(NAMku
     RESOURCES ${NAMKU_GUI_PNGS}
     OUTPUT_SUBDIRECTORY gui
+)
+
+# Title (Michroma) and body (Roboto) fonts, installed into the user font
+# directory on first editor open (see namview.cpp) so BFont can select them.
+smtg_target_add_plugin_resources(NAMku
+    RESOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/resource/fonts/Michroma-Regular.ttf"
+        "${CMAKE_CURRENT_SOURCE_DIR}/resource/fonts/Roboto-Regular.ttf"
+    OUTPUT_SUBDIRECTORY fonts
 )
 
 target_compile_features(NAMku

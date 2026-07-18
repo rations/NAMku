@@ -37,6 +37,25 @@ import() { # import <upstream-basename> <output-name>
     echo "  $2  <-  $(basename "$s")"
 }
 
+# Rasterize an SVG icon (needs rsvg-convert / librsvg2-bin). Rendered at 2x the
+# display size and drawn downscaled by the view for crisp anti-aliasing.
+svg() { # svg <upstream-basename> <output-name> <2x-args...>
+    s="$NAM_UPSTREAM/$1.svg"
+    [ -f "$s" ] || { echo "MISSING SVG: $1" >&2; exit 1; }
+    rsvg-convert "$@" "$s" -o "$OUT/$2" 2>/dev/null && echo "  $2  <-  $1.svg"
+}
+svg2() { # svg2 <basename> <output> <2x-w-or-h-flag> : convenience wrapper
+    b="$1"; o="$2"; shift 2
+    s="$NAM_UPSTREAM/$b.svg"
+    [ -f "$s" ] || { echo "MISSING SVG: $b" >&2; exit 1; }
+    rsvg-convert "$@" "$s" -o "$OUT/$o" 2>/dev/null && echo "  $o  <-  $b.svg"
+}
+
+command -v rsvg-convert >/dev/null || {
+    echo "rsvg-convert not found (install librsvg2-bin) - SVG icons will be skipped" >&2
+    RSVG_MISSING=1
+}
+
 echo "Importing NAM art from: $NAM_UPSTREAM"
 import Background          background.png
 import Lines               lines.png
@@ -45,4 +64,18 @@ import FileBackground      file_bg.png
 import MeterBackground     meter_bg.png
 import SlideSwitchHandle   switch_handle.png
 import InputLevelBackground input_bg.png
+
+if [ -z "${RSVG_MISSING:-}" ]; then
+    # Icons, rendered at 2x their on-screen size (view draws them downscaled).
+    svg2 Gear          gear.png        -h 52
+    svg2 File          load.png        -h 36
+    svg2 Cross         clear.png       -h 32
+    svg2 SlimmableIcon slimmable.png   -w 80 -h 40
+    svg2 IRIconOn      ir_on.png       -h 44
+    svg2 IRIconOff     ir_off.png      -h 44
+    svg2 ModelIcon     model.png       -w 84
+    svg2 Globe         globe.png       -h 36
+    svg2 ArrowLeft     arrow_left.png  -h 28
+    svg2 ArrowRight    arrow_right.png -h 28
+fi
 echo "Done -> $OUT"

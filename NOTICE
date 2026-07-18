@@ -65,3 +65,24 @@ Note: AudioDSPTools' Lanczos resampler (deps/AudioDSPTools/dsp/
 ResamplingContainer/) incorporates code derived from iPlug2 and from
 sst-basic-blocks (GPL-3.0-or-later); the required upstream licence notices are
 retained in-file within those source files.
+
+-------------------------------------------------------------------------------
+
+The editor art assets under resource/gui/ are used under the MIT Licence:
+
+  NeuralAmpModelerPlugin    https://github.com/sdatkinson/NeuralAmpModelerPlugin
+  Copyright (c) 2022 Steven Atkinson
+
+  The panel backdrop, line overlay, knob face, file-row and meter backgrounds,
+  input-level field, and slide-switch handle are imported from that project's
+  resources/img/ raster art; the gear, clear (cross), load (file), model, IR
+  on/off, slim, globe, and arrow glyphs are rasterised from its resources/img/
+  SVG icons. The images are reused unmodified except for format normalisation
+  to 32-bit PNG (and, for the SVGs, rasterisation to PNG). See gui/README.md.
+
+-------------------------------------------------------------------------------
+
+Bundled fonts (resource/fonts/): Michroma-Regular.ttf (SIL Open Font License
+1.1) and Roboto-Regular.ttf (Apache License 2.0) — the same typefaces the
+original plug-in uses for its title and body text. Full attribution is in
+resource/fonts/NOTICE.
