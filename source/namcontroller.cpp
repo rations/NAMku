@@ -2,6 +2,7 @@
 
 #include "namcontroller.h"
 #include "namids.h"
+#include "namview.h"
 
 #include "base/source/fstreamer.h"
 #include "pluginterfaces/base/ibstream.h"
@@ -91,6 +92,16 @@ tresult PLUGIN_API NamController::initialize(FUnknown *context)
     calLevel->setPrecision(1);
     parameters.addParameter(calLevel);
 
+    // Input/output level meters (processor -> editor via output parameter
+    // changes). Hidden and read-only: never automated, never persisted,
+    // invisible to generic parameter UIs.
+    parameters.addParameter(STR16("Input Meter"), nullptr, 0, 0.0,
+                            Vst::ParameterInfo::kIsReadOnly | Vst::ParameterInfo::kIsHidden,
+                            kInputMeterId);
+    parameters.addParameter(STR16("Output Meter"), nullptr, 0, 0.0,
+                            Vst::ParameterInfo::kIsReadOnly | Vst::ParameterInfo::kIsHidden,
+                            kOutputMeterId);
+
     return kResultOk;
 }
 
@@ -172,9 +183,31 @@ tresult PLUGIN_API NamController::notify(Vst::IMessage *message)
         retitleParam(kOutputModeId, hasOut ? "Output Mode" : "Output Mode (no calibration)");
         if (componentHandler)
             componentHandler->restartComponent(Vst::kParamTitlesChanged);
+        // Let the native editor grey/hide the model-gated controls too.
+        if (mView)
+            mView->ModelCapsChanged(slimmable != 0, hasIn != 0, hasOut != 0);
         return kResultOk;
     }
     return EditController::notify(message);
+}
+
+//------------------------------------------------------------------------
+IPlugView *PLUGIN_API NamController::createView(FIDString name)
+{
+    if (name && strcmp(name, Vst::ViewType::kEditor) == 0)
+        return new NamEditorView(this);
+    return nullptr;
+}
+
+void NamController::editorAttached(Vst::EditorView *editor)
+{
+    mView = static_cast<NamEditorView *>(editor);
+}
+
+void NamController::editorRemoved(Vst::EditorView *editor)
+{
+    if (mView == static_cast<NamEditorView *>(editor))
+        mView = nullptr;
 }
 
 //------------------------------------------------------------------------
@@ -191,6 +224,10 @@ tresult PLUGIN_API NamController::setParamNormalized(Vst::ParamID tag, Vst::Para
             sendMessage(message);
         }
     }
+    // Push every value change into the live editor (metering, automation,
+    // generic UI, state load). Same looper thread as the host caller.
+    if (mView && result == kResultOk)
+        mView->ParamChanged(tag, value);
     return result;
 }
 

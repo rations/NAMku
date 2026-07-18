@@ -11,6 +11,8 @@
 namespace NAMku
 {
 
+class NamEditorView;
+
 //------------------------------------------------------------------------
 class NamController : public Steinberg::Vst::EditController, public INamFileLoader
 {
@@ -30,6 +32,14 @@ public:
     // Receives the processor's model-capability message and retitles the
     // parameters the loaded capture does not support ("… (n/a)").
     Steinberg::tresult PLUGIN_API notify(Steinberg::Vst::IMessage *message) SMTG_OVERRIDE;
+
+    // Native Haiku editor (IPlugView). The live view is tracked through the
+    // EditorView attach hooks; setParamNormalized and the model-caps message
+    // push updates to it. All run on the host window's looper thread (host
+    // contract), so no locking is needed around mView.
+    Steinberg::IPlugView *PLUGIN_API createView(Steinberg::FIDString name) SMTG_OVERRIDE;
+    void editorAttached(Steinberg::Vst::EditorView *editor) SMTG_OVERRIDE;
+    void editorRemoved(Steinberg::Vst::EditorView *editor) SMTG_OVERRIDE;
 
     // INamFileLoader
     Steinberg::tresult PLUGIN_API setModelFile(const Steinberg::char8 *path) SMTG_OVERRIDE;
@@ -54,6 +64,7 @@ private:
 
     std::string mModelPath;
     std::string mIrPath;
+    NamEditorView *mView = nullptr; // live editor, host window looper thread only
 };
 
 } // namespace NAMku

@@ -94,24 +94,62 @@ target_compile_options(NamDsp PRIVATE -ffast-math -Wno-unused-parameter)
 smtg_add_vst3plugin(NAMku
     source/inamfileloader.h
     source/namids.h
+    source/namgeometry.h
     source/version.h
     source/resamplingnam.h
     source/namprocessor.h
     source/namprocessor.cpp
     source/namcontroller.h
     source/namcontroller.cpp
+    source/namview.h
+    source/namview.cpp
     source/namfactory.cpp
 )
 
 smtg_target_configure_version_file(NAMku)
+
+# Editor art layers (imported by gui/make_assets.sh, committed) -> bundle
+# Contents/Resources/gui/.
+file(GLOB NAMKU_GUI_PNGS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resource/gui/*.png")
+smtg_target_add_plugin_resources(NAMku
+    RESOURCES ${NAMKU_GUI_PNGS}
+    OUTPUT_SUBDIRECTORY gui
+)
+
+# Title (Michroma) and body (Roboto) fonts, installed into the user font
+# directory on first editor open (see namview.cpp) so BFont can select them.
+smtg_target_add_plugin_resources(NAMku
+    RESOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/resource/fonts/Michroma-Regular.ttf"
+        "${CMAKE_CURRENT_SOURCE_DIR}/resource/fonts/Roboto-Regular.ttf"
+    OUTPUT_SUBDIRECTORY fonts
+)
 
 target_compile_features(NAMku
     PUBLIC
         cxx_std_17
 )
 target_compile_options(NAMku PRIVATE -ffast-math)
+
+# Native Haiku editor: the HaikuPlugView helper header lives next to the
+# Haiku-patched SDK tree (VST3-haiku/haiku), and the view links the Be API.
+if(DEFINED VST3_SDK_DIR)
+    set(NAMKU_HAIKU_SUPPORT_DIR "${VST3_SDK_DIR}/../haiku")
+else()
+    set(NAMKU_HAIKU_SUPPORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../VST3-haiku/haiku")
+endif()
+if(NOT EXISTS "${NAMKU_HAIKU_SUPPORT_DIR}/haikuplugview.h")
+    message(FATAL_ERROR
+        "HaikuPlugView helper not found at '${NAMKU_HAIKU_SUPPORT_DIR}' - "
+        "check out VST3-haiku next to this repository")
+endif()
+target_include_directories(NAMku PRIVATE "${NAMKU_HAIKU_SUPPORT_DIR}")
+
 target_link_libraries(NAMku
     PRIVATE
         sdk
         -Wl,--whole-archive NamDsp -Wl,--no-whole-archive
+        be
+        tracker # BFilePanel
+        translation # BTranslationUtils
 )

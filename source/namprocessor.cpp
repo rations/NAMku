@@ -52,6 +52,31 @@ inline double dbToLinear(double db)
     return std::pow(10.0, db / 20.0);
 }
 
+// Map a linear peak to the meter's normalized 0 .. 1 display range.
+inline double peakToMeterNorm(double peak)
+{
+    const double db = 20.0 * std::log10(std::max(peak, 1e-7));
+    const double norm = (db - ranges::kMeterMinDb) / (ranges::kMeterMaxDb - ranges::kMeterMinDb);
+    return norm < 0.0 ? 0.0 : (norm > 1.0 ? 1.0 : norm);
+}
+
+// Write one point to an output parameter queue. RT-safe under the SDK host
+// implementation: ParameterChanges is pre-sized by the host and every queue
+// pre-reserves points at construction — the point-count guard keeps us inside
+// that reserve so addPoint never grows the vector on the RT thread.
+inline void writeOutputPoint(Vst::IParameterChanges *outChanges, Vst::ParamID id,
+                             Vst::ParamValue value, Steinberg::int32 sampleOffset)
+{
+    if (!outChanges)
+        return;
+    Steinberg::int32 queueIndex = 0;
+    Vst::IParamValueQueue *queue = outChanges->addParameterData(id, queueIndex);
+    if (!queue || queue->getPointCount() >= 4)
+        return;
+    Steinberg::int32 pointIndex = 0;
+    queue->addPoint(sampleOffset, value, pointIndex);
+}
+
 } // namespace
 
 //------------------------------------------------------------------------
@@ -253,6 +278,20 @@ tresult PLUGIN_API NamProcessor::process(Vst::ProcessData &data)
             memcpy(dst, out, static_cast<size_t>(numSamples) * sizeof(float));
     }
     data.outputs[0].silenceFlags = 0;
+
+    // Input/output level meters: per-block peak -> normalized display value,
+    // pushed to the editor via output parameter changes. RT-safe (no alloc;
+    // the host pre-sizes outputParameterChanges, and the writes are skipped
+    // when it is null). One point per meter per block.
+    if (data.outputParameterChanges) {
+        double inPeak = 0.0, outPeak = 0.0;
+        for (int32 i = 0; i < numSamples; ++i) {
+            inPeak = std::max(inPeak, std::fabs(static_cast<double>(in[i])));
+            outPeak = std::max(outPeak, std::fabs(static_cast<double>(out[i])));
+        }
+        writeOutputPoint(data.outputParameterChanges, kInputMeterId, peakToMeterNorm(inPeak), 0);
+        writeOutputPoint(data.outputParameterChanges, kOutputMeterId, peakToMeterNorm(outPeak), 0);
+    }
 
     return kResultOk;
 }

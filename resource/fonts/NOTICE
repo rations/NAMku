@@ -1,0 +1,19 @@
+Fonts bundled with NAMku
+========================
+
+Michroma-Regular.ttf
+  Used under the SIL Open Font License 1.1.
+  Copyright (C) 2011 James Grieshaber (james@grieshaber.com), with Reserved
+  Font Name "Michroma". The font software may be used, modified and distributed
+  freely so long as it is not sold by itself.
+  Full licence text: https://openfontlicense.org
+
+Roboto-Regular.ttf
+  Used under the Apache License, Version 2.0.
+  Copyright (C) 2011 Google Inc. All Rights Reserved.
+  http://www.apache.org/licenses/LICENSE-2.0
+
+These are the same typefaces the original Neural Amp Modeler plugin uses for its
+title (Michroma) and body text (Roboto). NAMku installs them into the user's
+non-packaged font directory on first editor open so the app_server can select
+them; a system-font fallback is used if they are unavailable.
