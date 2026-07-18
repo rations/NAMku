@@ -27,6 +27,12 @@ enum ParamIDs : Steinberg::Vst::ParamID {
     kSlimId = 110,                  // 0 .. 1, default 0 — slimmable (A2) models only
     kCalibrateInputId = 111,        // toggle, default off — models with input level only
     kInputCalibrationLevelId = 112, // -60 .. +60 dBu, default 12
+
+    // Hidden, read-only meter parameters (processor -> editor via output
+    // parameter changes; never automated, never persisted). Values are the
+    // per-block peak level mapped to 0 .. 1 over the meter dB range below.
+    kInputMeterId = 200,
+    kOutputMeterId = 201,
 };
 
 // Plain-value ranges shared by the processor (denormalization) and the
@@ -38,6 +44,9 @@ inline constexpr double kNgMin = -100.0, kNgMax = 0.0, kNgDefault = -80.0;
 inline constexpr double kToneMin = 0.0, kToneMax = 10.0, kToneDefault = 5.0;
 // Input calibration level (dBu) — range and default match the original plug-in.
 inline constexpr double kCalMin = -60.0, kCalMax = 60.0, kCalDefault = 12.0;
+// Level-meter display range (dB): a linear peak is mapped to 0 .. 1 across
+// this window before travelling to the editor. Matches the original meter.
+inline constexpr double kMeterMinDb = -70.0, kMeterMaxDb = 0.0;
 } // namespace ranges
 
 // Message IDs for controller -> processor file loading (IConnectionPoint).
