@@ -37,7 +37,7 @@ If NAMku and VST3-haiku are sibling directories, `VST3_SDK_DIR` defaults to
 add-ons directory:
 
 ```sh
-cp -r build/VST3/Release/NAMku.vst3 ~/config/non-packaged/add-ons/vst3/
+cp -r build/VST3/Release/NAMku.vst3 ~/config/non-packaged/add-ons/media/VST3/
 ```
 
 NAMku also builds as a CMake subdirectory of VST3-haiku itself.
@@ -45,7 +45,7 @@ NAMku also builds as a CMake subdirectory of VST3-haiku itself.
 ## Install / packaging (Haiku)
 
 - From source: `./build-from-source.sh` (installs `NAMku.vst3` to
-  `~/config/non-packaged/add-ons/vst3`).
+  `~/config/non-packaged/add-ons/media/VST3`).
 - Prebuilt package: `packaging/make-hpkg.sh` → `namku-0.1.0-1-x86_64.hpkg`
   (`pkgman install ./namku-*.hpkg`). HaikuPorts recipe: `packaging/namku-0.1.0.recipe`.
 - See the stack overview in `jackDAW-haiku/STACK.md`.

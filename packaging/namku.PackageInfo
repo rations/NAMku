@@ -1,5 +1,5 @@
 name			namku
-version			0.2.0-1
+version			0.3.0-1
 architecture	x86_64
 summary			"NAMku - Neural Amp Modeler VST3 plug-in (Haiku)"
 description		"A Neural Amp Modeler (NAM) player as a native VST3 plug-in: loads .nam
@@ -18,7 +18,7 @@ licenses {
 	"MPL v2.0"
 }
 provides {
-	namku = 0.2.0
+	namku = 0.3.0
 }
 requires {
 	haiku
