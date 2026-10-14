@@ -266,7 +266,7 @@ public:
             return;
         }
         // Slim icon (slimmable models only) -> open slim overlay.
-        if (mSlimmable) {
+        if (slimAvailable()) {
             BRect si(geo::kSlimIconX, geo::kSlimIconY, geo::kSlimIconX + geo::kSlimIconW,
                      geo::kSlimIconY + geo::kSlimIconH);
             if (si.Contains(where)) {
@@ -378,15 +378,55 @@ public:
         Invalidate();
     }
 
-    void ModelCapsChanged(bool slimmable, bool hasInputLevel, bool hasOutputLevel)
+    void ModelCapsChanged()
     {
-        mSlimmable = slimmable;
-        mHasInputLevel = hasInputLevel;
-        mHasOutputLevel = hasOutputLevel;
+        // A load can take the Slim control away underneath an open overlay:
+        // load a non-slimmable capture while it is up and the icon that opened
+        // it is gone. Shut it, as the original plug-in hides its own overlay
+        // when the model it belongs to goes away. Nothing is lost by closing —
+        // the knob publishes each edit as it is made.
+        if (mSlimOpen && !slimAvailable())
+            mSlimOpen = false;
         Invalidate();
     }
 
 private:
+    // The capabilities live on the controller, not here: the caps message
+    // arrives only on a load or a clear, so a copy held by the panel would
+    // describe whatever was loaded when this editor was built, and an editor
+    // reopened over a live capture would start from the defaults. With
+    // nothing loaded there is no metadata to be missing, so nothing is gated.
+    const ModelCaps &caps() const
+    {
+        return mController->modelCaps();
+    }
+    bool normalizedSupported() const
+    {
+        return !caps().loaded || caps().hasLoudness;
+    }
+    bool calibratedSupported() const
+    {
+        return !caps().loaded || caps().hasOutputLevel;
+    }
+    bool calibrateInputAvailable() const
+    {
+        return !caps().loaded || caps().hasInputLevel;
+    }
+    bool outputModeSupported(int mode) const
+    {
+        if (mode == 0)
+            return true; // Raw compensates for nothing, so nothing can be missing
+        return mode == 1 ? normalizedSupported() : calibratedSupported();
+    }
+    // Slim is not gated the way the output controls are: it is an icon that
+    // opens an overlay, and a capture that is not slimmable has no size to
+    // choose. So this asks whether the loaded model IS slimmable, and an
+    // empty slot answers no.
+    bool slimAvailable() const
+    {
+        return caps().slimmable;
+    }
+
     void editParam(Vst::ParamID id, double norm)
     {
         mController->beginEdit(id);
@@ -431,7 +471,7 @@ private:
             return;
         }
         if (mSettingsOpen) {
-            if (mHasInputLevel && calValueRect().Contains(where))
+            if (calibrateInputAvailable() && calValueRect().Contains(where))
                 nudgeParam(kInputCalibrationLevelId, step);
             return;
         }
@@ -471,18 +511,17 @@ private:
             Invalidate();
             return;
         }
-        // Output mode (index 0/1/2 -> normalized 0/0.5/1). Normalized and
-        // Calibrated need model output-level metadata.
+        // Output mode (index 0/1/2 -> normalized 0/0.5/1). Every mode is
+        // selectable; the ones the capture has no metadata for say so in
+        // their label and behave as Raw (applyDsp leaves the gain at unity).
         for (int i = 0; i < 3; ++i) {
             if (outputModeRow(i).Contains(where)) {
-                if (i > 0 && !mHasOutputLevel)
-                    return; // gated
                 editParam(kOutputModeId, i * 0.5);
                 Invalidate();
                 return;
             }
         }
-        if (mHasInputLevel) {
+        if (calibrateInputAvailable()) {
             if (calibrateToggleRect().Contains(where)) {
                 double on = mController->getParamNormalized(kCalibrateInputId) > 0.5 ? 0.0 : 1.0;
                 editParam(kCalibrateInputId, on);
@@ -619,7 +658,7 @@ private:
         drawMeter(v, geo::kInputMeter, mInDisp, "IN");
         drawMeter(v, geo::kOutputMeter, mOutDisp, "OUT");
         drawGear(v);
-        if (mSlimmable)
+        if (slimAvailable())
             drawSlimIcon(v);
 
         if (mSettingsOpen)
@@ -914,14 +953,14 @@ private:
             UString(str, 128).toAscii(buf, sizeof(buf));
         v->SetDrawingMode(B_OP_OVER);
         v->SetFontSize(13);
-        v->SetHighColor(mHasInputLevel ? rgb(geo::kTextColor) : rgb(0x5A5760));
+        v->SetHighColor(calibrateInputAvailable() ? rgb(geo::kTextColor) : rgb(0x5A5760));
         float vw = v->StringWidth(buf);
         v->DrawString(buf, BPoint(val.left + (val.Width() - vw) / 2.0f, val.top + 18));
 
         BRect tog = calibrateToggleRect();
         const bool calOn = mController->getParamNormalized(kCalibrateInputId) > 0.5;
-        v->SetHighColor(!mHasInputLevel ? rgb(0x2A2730)
-                                        : (calOn ? rgb(geo::kAzure) : rgb(0x2A2730)));
+        v->SetHighColor(!calibrateInputAvailable() ? rgb(0x2A2730)
+                                                   : (calOn ? rgb(geo::kAzure) : rgb(0x2A2730)));
         v->FillRoundRect(tog, geo::kToggleH / 2, geo::kToggleH / 2);
         const int hs = 18;
         float hx = calOn ? tog.right - hs - 2 : tog.left + 2;
@@ -930,7 +969,7 @@ private:
             drawFitted(v, mSwitchHandle, handle);
         v->SetDrawingMode(B_OP_OVER);
         v->SetFontSize(12);
-        v->SetHighColor(mHasInputLevel ? rgb(geo::kTextColor) : rgb(0x5A5760));
+        v->SetHighColor(calibrateInputAvailable() ? rgb(geo::kTextColor) : rgb(0x5A5760));
         float cw = v->StringWidth("Calibrate Input");
         v->DrawString("Calibrate Input",
                       BPoint(val.left + (val.Width() - cw) / 2.0f, tog.bottom + 16));
@@ -944,17 +983,16 @@ private:
         v->SetFontSize(12);
         for (int i = 0; i < 3; ++i) {
             BRect row = outputModeRow(i);
-            const bool gated = (i > 0 && !mHasOutputLevel);
+            // Annotated, never disabled: a mode whose metadata is absent is a
+            // no-op in the DSP, so refusing the click buys nothing.
             BPoint dot(row.left + 8, row.top + 11);
-            v->SetHighColor(gated ? rgb(0x4A4750) : rgb(geo::kAzure));
+            v->SetHighColor(rgb(geo::kAzure));
             v->StrokeEllipse(dot, 6, 6);
-            if (i == cur) {
-                v->SetHighColor(rgb(geo::kAzure));
+            if (i == cur)
                 v->FillEllipse(dot, 3, 3);
-            }
-            v->SetHighColor(gated ? rgb(0x5A5760) : rgb(geo::kTextColor));
+            v->SetHighColor(rgb(geo::kTextColor));
             BString label(modes[i]);
-            if (gated)
+            if (!outputModeSupported(i))
                 label << " [Not supported by model]";
             v->DrawString(label.String(), BPoint(row.left + 22, row.top + 16));
         }
@@ -1040,9 +1078,6 @@ private:
 
     bool mSettingsOpen = false;
     bool mSlimOpen = false;
-    bool mSlimmable = false;
-    bool mHasInputLevel = false;
-    bool mHasOutputLevel = false;
 };
 
 //------------------------------------------------------------------------
@@ -1073,10 +1108,10 @@ void NamEditorView::ParamChanged(Vst::ParamID id, Vst::ParamValue value)
         mPanel->ParamChanged(id, value);
 }
 
-void NamEditorView::ModelCapsChanged(bool slimmable, bool hasInputLevel, bool hasOutputLevel)
+void NamEditorView::ModelCapsChanged()
 {
     if (mPanel)
-        mPanel->ModelCapsChanged(slimmable, hasInputLevel, hasOutputLevel);
+        mPanel->ModelCapsChanged();
 }
 
 } // namespace NAMku

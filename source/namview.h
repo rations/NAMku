@@ -29,7 +29,8 @@ public:
 
     // Called by the controller when the processor reports model capabilities,
     // so the editor can enable/disable the model-gated controls.
-    void ModelCapsChanged(bool slimmable, bool hasInputLevel, bool hasOutputLevel);
+    // The model capabilities changed; they are read back from the controller.
+    void ModelCapsChanged();
 
 protected:
     BView *createHaikuView(BRect frame) SMTG_OVERRIDE;

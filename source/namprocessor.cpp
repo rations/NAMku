@@ -131,7 +131,9 @@ tresult PLUGIN_API NamProcessor::setupProcessing(Vst::ProcessSetup &setup)
         return result;
 
     mSampleRate = setup.sampleRate;
-    mMaxBlockSize = setup.maxSamplesPerBlock;
+    // process() walks each block in steps of mMaxBlockSize, so a host that
+    // announces no maximum must not leave it at zero.
+    mMaxBlockSize = setup.maxSamplesPerBlock > 0 ? setup.maxSamplesPerBlock : 2048;
 
     mWorkBufInput.assign(static_cast<size_t>(mMaxBlockSize), 0.0);
     mWorkBufOutput.assign(static_cast<size_t>(mMaxBlockSize), 0.0);
@@ -145,8 +147,22 @@ tresult PLUGIN_API NamProcessor::setupProcessing(Vst::ProcessSetup &setup)
     // processing is guaranteed inactive during setupProcessing.
     if (mModel)
         mModel->Reset(mSampleRate, mMaxBlockSize);
+    // The pending model needs it just as much. It was built for the previous
+    // rate and block size, and the RT thread swaps it in without touching it —
+    // so leaving it out means the first block after the swap runs a model
+    // prepared for the wrong rate, with buffers sized for the wrong block.
+    if (mPendingModel)
+        mPendingModel->Reset(mSampleRate, mMaxBlockSize);
     if (!mIrPath.empty())
         loadIr(mIrPath); // the IR is resampled at load time for the new rate
+
+    // Reported latency depends on the rate: the resampler is bypassed when the
+    // model already runs at the session rate. Without this, a rate change is
+    // not reflected until the next model load.
+    if (auto *r = static_cast<ResamplingNAM *>(mModel.get()))
+        mLatency.store(static_cast<uint32>(r->GetLatency()), std::memory_order_relaxed);
+    else
+        mLatency.store(0, std::memory_order_relaxed);
 
     return kResultOk;
 }
@@ -260,7 +276,7 @@ tresult PLUGIN_API NamProcessor::process(Vst::ProcessData &data)
     if (!data.inputs[0].channelBuffers32 || !data.outputs[0].channelBuffers32)
         return kResultOk;
 
-    const int32 numSamples = std::min(data.numSamples, mMaxBlockSize);
+    const int32 numSamples = data.numSamples;
     float *in = data.inputs[0].channelBuffers32[0];
     float *out = data.outputs[0].channelBuffers32[0];
 
@@ -268,7 +284,17 @@ tresult PLUGIN_API NamProcessor::process(Vst::ProcessData &data)
         if (out != in)
             memcpy(out, in, static_cast<size_t>(numSamples) * sizeof(float));
     } else {
-        applyDsp(in, out, numSamples);
+        // The host may hand us more than it promised in setupProcessing. Loop
+        // in whole sub-blocks rather than clamping to mMaxBlockSize: clamping
+        // leaves the tail of the output buffer holding whatever was there
+        // before, which is stale audio rather than a dropout, and it would
+        // also hand the model a block larger than the size it was Reset with.
+        // Every chunk is <= mMaxBlockSize, so the buffers pre-warmed in
+        // setActive are never grown and nothing allocates here.
+        for (int32 done = 0; done < numSamples; done += mMaxBlockSize) {
+            const int32 n = std::min(mMaxBlockSize, numSamples - done);
+            applyDsp(in + done, out + done, n);
+        }
     }
 
     // Mono result -> every remaining output channel.
@@ -389,16 +415,18 @@ void NamProcessor::applyDsp(float *in, float *out, int32 numSamples)
 // so it can retitle the unsupported parameters. Message thread only; runs
 // after every model load or clear. Capabilities are read from the new model
 // BEFORE it is staged for the RT swap, so no model slot is touched here.
-void NamProcessor::sendModelCaps(bool slimmable, bool hasInputLevel, bool hasOutputLevel)
+void NamProcessor::sendModelCaps(const ModelCaps &caps)
 {
     Steinberg::IPtr<Vst::IMessage> message = owned(allocateMessage());
     if (!message)
         return;
     message->setMessageID(kMsgModelCaps);
     Vst::IAttributeList *attrs = message->getAttributes();
-    attrs->setInt(kCapsSlimmableAttr, slimmable ? 1 : 0);
-    attrs->setInt(kCapsInLevelAttr, hasInputLevel ? 1 : 0);
-    attrs->setInt(kCapsOutLevelAttr, hasOutputLevel ? 1 : 0);
+    attrs->setInt(kCapsLoadedAttr, caps.loaded ? 1 : 0);
+    attrs->setInt(kCapsSlimmableAttr, caps.slimmable ? 1 : 0);
+    attrs->setInt(kCapsLoudnessAttr, caps.hasLoudness ? 1 : 0);
+    attrs->setInt(kCapsInLevelAttr, caps.hasInputLevel ? 1 : 0);
+    attrs->setInt(kCapsOutLevelAttr, caps.hasOutputLevel ? 1 : 0);
     sendMessage(message);
 }
 
@@ -409,7 +437,7 @@ bool NamProcessor::loadModel(const std::string &path)
         mPendingModel.reset();
         mModelPath.clear();
         mModelPending.store(true, std::memory_order_release);
-        sendModelCaps(false, false, false);
+        sendModelCaps(ModelCaps{}); // nothing loaded: every flag false
         return true;
     }
     try {
@@ -422,13 +450,16 @@ bool NamProcessor::loadModel(const std::string &path)
         // model before it is staged for the RT swap.
         if (auto *s = wrapped->GetSlimmableModel())
             s->SetSlimmableSize(mSlimNorm.load(std::memory_order_relaxed));
-        const bool slimmable = wrapped->GetSlimmableModel() != nullptr;
-        const bool hasIn = wrapped->HasInputLevel();
-        const bool hasOut = wrapped->HasOutputLevel();
+        ModelCaps caps;
+        caps.loaded = true;
+        caps.slimmable = wrapped->GetSlimmableModel() != nullptr;
+        caps.hasLoudness = wrapped->HasLoudness();
+        caps.hasInputLevel = wrapped->HasInputLevel();
+        caps.hasOutputLevel = wrapped->HasOutputLevel();
         mPendingModel = std::move(wrapped);
         mModelPath = path;
         mModelPending.store(true, std::memory_order_release);
-        sendModelCaps(slimmable, hasIn, hasOut);
+        sendModelCaps(caps);
         return true;
     } catch (const std::exception &) {
         return false;
