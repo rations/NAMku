@@ -1,5 +1,8 @@
 # NAMku
 
+> **Users:** install the whole stack from the [JackDAW release](https://github.com/rations/jackDAW-haiku/releases)
+> (`sh install.sh`). This repository is the source of the `namku` package.
+
 A [Neural Amp Modeler](https://www.neuralampmodeler.com/) VST3 plug-in for
 **Haiku OS** — a raw Steinberg VST3 plug-in (no JUCE, no framework), built on
 the Haiku port of the VST 3 SDK from
