@@ -1,18 +1,19 @@
 # NAMku
 
-> **Users:** install the whole stack from the [JackDAW release](https://github.com/rations/jackDAW-haiku/releases)
-> (`sh install.sh`). This repository is the source of the `namku` package.
+> This repository is the source of the `namku` package, part of the
+> [JackDAW stack](https://github.com/rations/jackDAW-renku) for RenkuOS. The 0.5
+> release's `install.sh` is for Haiku hrev60256; there is no RenkuOS release yet.
 
 A [Neural Amp Modeler](https://www.neuralampmodeler.com/) VST3 plug-in for
-**Haiku OS** — a raw Steinberg VST3 plug-in (no JUCE, no framework), built on
-the Haiku port of the VST 3 SDK from
-[VST3-haiku](https://github.com/rations/VST3-haiku).
+**RenkuOS** (a Haiku fork) — a raw Steinberg VST3 plug-in (no JUCE, no framework),
+built on the port of the VST 3 SDK from
+[VST3-renku](https://github.com/rations/VST3-renku).
 
 NAMku loads `.nam` neural amp models and `.wav` impulse responses and runs
-them live in a VST3 host. Since plug-in GUIs are not available on Haiku yet,
+them live in a VST3 host. Since plug-in GUIs are not available on RenkuOS yet,
 file loading works without a GUI through a small COM-style host extension
 (`INamFileLoader`, see `source/inamfileloader.h`): hosts that know the
-interface (VST3-haiku's `vst3jackhost`, jackDAW-haiku) offer *load model* /
+interface (VST3-renku's `vst3jackhost`, JackDAW) offer *load model* /
 *load IR* controls; all other hosts see a normal VST3 effect.
 
 ## Signal chain
@@ -26,12 +27,12 @@ never allocated or freed on the audio thread.
 ## Building
 
 Requires CMake ≥ 3.25, ninja, a C++20 compiler, and a checkout of the
-Haiku-patched VST 3 SDK (vendored in
-[VST3-haiku](https://github.com/rations/VST3-haiku)):
+patched VST 3 SDK (vendored in
+[VST3-renku](https://github.com/rations/VST3-renku)):
 
 ```sh
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-      -DVST3_SDK_DIR=/path/to/VST3-haiku/vst3sdk
+      -DVST3_SDK_DIR=/path/to/VST3-renku/vst3sdk
 ninja -C build
 ```
 
@@ -43,15 +44,15 @@ add-ons directory:
 cp -r build/VST3/Release/NAMku.vst3 ~/config/non-packaged/add-ons/media/VST3/
 ```
 
-NAMku also builds as a CMake subdirectory of VST3-haiku itself.
+NAMku also builds as a CMake subdirectory of VST3-renku itself.
 
-## Install / packaging (Haiku)
+## Install / packaging (RenkuOS)
 
 - From source: `./build-from-source.sh` (installs `NAMku.vst3` to
   `~/config/non-packaged/add-ons/media/VST3`).
 - Prebuilt package: `packaging/make-hpkg.sh` → `namku-0.1.0-1-x86_64.hpkg`
   (`pkgman install ./namku-*.hpkg`). HaikuPorts recipe: `packaging/namku-0.1.0.recipe`.
-- See the stack overview in `jackDAW-haiku/STACK.md`.
+- See the [stack overview](https://github.com/rations/jackDAW-renku/blob/master/STACK.md).
 
 ## Credits and licenses
 
