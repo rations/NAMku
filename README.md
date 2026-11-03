@@ -10,18 +10,38 @@ built on the port of the VST 3 SDK from
 [VST3-renku](https://github.com/rations/VST3-renku).
 
 NAMku loads `.nam` neural amp models and `.wav` impulse responses and runs
-them live in a VST3 host. Since plug-in GUIs are not available on RenkuOS yet,
+them live in a VST3 host, or on its own as the **NAMku app**. Since plug-in GUIs are not available on RenkuOS yet,
 file loading works without a GUI through a small COM-style host extension
 (`INamFileLoader`, see `source/inamfileloader.h`): hosts that know the
 interface (VST3-renku's `vst3jackhost`, JackDAW) offer *load model* /
 *load IR* controls; all other hosts see a normal VST3 effect.
 
+## Standalone app
+
+`NAMku` (Applications in the Deskbar) plays NAMku without a DAW: one window
+with NAMku's own editor, an **Audio** menu and a status line.
+
+- **Audio ▸ Media Kit / JACK** picks the audio system. The Media Kit is built
+  in: NAMku becomes one media node (Cortex shows it) whose output goes to the
+  system mixer. JACK uses JackDAW's JACK backend, loaded from the
+  `add-ons/NAMku/jack.so` add-on only when chosen, so the app runs without the
+  jack package; its output goes to the first two playback ports. If JACK is not
+  running, the app says so and stays on the Media Kit.
+- **Audio ▸ Input** connects the guitar input (one capture channel).
+- The status line shows the audio system, rate, buffer size, late cycles and
+  input.
+- The model, IR, knobs, audio system, input and window position are restored
+  next time.
+
+The app hosts the same `NAMku.vst3` bundle a DAW loads (beside the app, or in
+`add-ons/media/VST3`), through VST3-renku's audio host code.
+
 ## Signal chain
 
 input gain → noise gate → NAM model → tone stack (bass/middle/treble) →
 IR convolution → output gain, with normalization/calibrated output modes.
-The NAM model always runs at 48 kHz; other session rates are handled by a
-Lanczos resampler. Model and IR are hot-swapped with atomic pointer swaps —
+The NAM model runs at its own rate (usually 48 kHz) and the IR at no more than
+48 kHz; other session rates are handled by Lanczos resamplers. Model and IR are hot-swapped with atomic pointer swaps —
 never allocated or freed on the audio thread.
 
 ## Building
@@ -50,8 +70,12 @@ NAMku also builds as a CMake subdirectory of VST3-renku itself.
 
 - From source: `./build-from-source.sh` (installs `NAMku.vst3` to
   `~/config/non-packaged/add-ons/media/VST3`).
-- Prebuilt package: `packaging/make-hpkg.sh` → `namku-0.1.0-1-x86_64.hpkg`
-  (`pkgman install ./namku-*.hpkg`). HaikuPorts recipe: `packaging/namku-0.1.0.recipe`.
+- From source: `./build-from-source.sh` also installs the app to
+  `~/config/non-packaged/apps` with a Deskbar entry.
+- Prebuilt package: `packaging/make-hpkg.sh` → `namku-0.5.0-1-x86_64.hpkg`
+  (`pkgman install ./namku-*.hpkg`): the plug-in, the app and its JACK add-on
+  (when jack is installed at build time). The HaikuPorts recipe in
+  `packaging/namku-0.1.0.recipe` is older and not yet validated.
 - See the [stack overview](https://github.com/rations/jackDAW-renku/blob/master/STACK.md).
 
 ## Credits and licenses

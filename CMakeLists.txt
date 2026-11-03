@@ -13,7 +13,7 @@
 cmake_minimum_required(VERSION 3.25.0)
 
 project(smtg-namku
-    VERSION 0.4.0
+    VERSION 0.5.0
     DESCRIPTION "NAMku neural amp modeler VST3 for Haiku"
 )
 
@@ -33,6 +33,10 @@ if(NOT TARGET sdk)
     set(SMTG_ENABLE_VST3_PLUGIN_EXAMPLES OFF CACHE BOOL "plug-in examples not needed" FORCE)
     set(SMTG_RUN_VST_VALIDATOR OFF CACHE BOOL "run manually instead" FORCE)
     set(SMTG_CREATE_PLUGIN_LINK OFF CACHE BOOL "install manually instead" FORCE)
+
+    # The audio backends the standalone app plays on, defined before the SDK
+    # (its audiohost sample looks for them too).
+    include(${VST3_SDK_DIR}/../haiku/jdbackend.cmake OPTIONAL)
 
     add_subdirectory(${VST3_SDK_DIR} vst3sdk)
 
@@ -153,3 +157,60 @@ target_link_libraries(NAMku
         tracker # BFilePanel
         translation # BTranslationUtils
 )
+
+# ---------------------------------------------------------------------------
+# The standalone app: NAMku without a DAW, on the Media Kit or on JACK.
+# It hosts the NAMku.vst3 bundle built above through the SDK audiohost's
+# AudioClient on JackDAW's audio backends (VST3-renku's haiku/jdbackend): the
+# Media Kit built in, JACK as the jack.so add-on, so it never links libjack.
+# ---------------------------------------------------------------------------
+if(HAIKU)
+    include("${NAMKU_HAIKU_SUPPORT_DIR}/jdbackend.cmake")
+    set(NAMKU_SDK_DIR "${NAMKU_HAIKU_SUPPORT_DIR}/../vst3sdk")
+    set(NAMKU_AUDIOHOST_DIR "${NAMKU_SDK_DIR}/public.sdk/samples/vst-hosting/audiohost")
+
+    add_executable(NAMkuApp
+        standalone/main.cpp
+        standalone/mainwindow.cpp
+        standalone/pluginhost.cpp
+        standalone/settings.cpp
+        ${NAMKU_AUDIOHOST_DIR}/source/media/audioclient.cpp
+        ${NAMKU_AUDIOHOST_DIR}/source/media/jdbackend/jdbackendclient.cpp
+        ${NAMKU_SDK_DIR}/public.sdk/source/vst/hosting/plugprovider.cpp
+        ${NAMKU_SDK_DIR}/public.sdk/source/vst/hosting/module_haiku.cpp
+        ${NAMKU_SDK_DIR}/public.sdk/source/common/memorystream.cpp
+    )
+    target_compile_features(NAMkuApp PRIVATE cxx_std_17)
+    # Warnings for our own files; the SDK's are built as the SDK builds them.
+    set_source_files_properties(
+        standalone/main.cpp standalone/mainwindow.cpp standalone/pluginhost.cpp
+        standalone/settings.cpp
+        PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra")
+    target_include_directories(NAMkuApp PRIVATE ${NAMKU_SDK_DIR} source)
+    target_link_libraries(NAMkuApp PRIVATE sdk_hosting jdbackend be)
+    set_target_properties(NAMkuApp
+        PROPERTIES
+            OUTPUT_NAME NAMku
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<CONFIG>
+    )
+    # The bundle it hosts, and the JACK add-on it can load.
+    add_dependencies(NAMkuApp NAMku)
+    if(TARGET jdbackend_jack)
+        add_dependencies(NAMkuApp jdbackend_jack)
+    endif()
+
+    # Signature, launch flags and version, so Tracker and Deskbar treat it as
+    # an application.
+    set(NAMKU_RSRC ${CMAKE_CURRENT_BINARY_DIR}/NAMku.rsrc)
+    add_custom_command(OUTPUT ${NAMKU_RSRC}
+        COMMAND rc -o ${NAMKU_RSRC} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/NAMku.rdef
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/standalone/NAMku.rdef
+        COMMENT "Compiling the NAMku app resources"
+    )
+    add_custom_target(NAMkuAppResources DEPENDS ${NAMKU_RSRC})
+    add_dependencies(NAMkuApp NAMkuAppResources)
+    add_custom_command(TARGET NAMkuApp POST_BUILD
+        COMMAND xres -o $<TARGET_FILE:NAMkuApp> ${NAMKU_RSRC}
+        COMMAND mimeset -f $<TARGET_FILE:NAMkuApp>
+    )
+endif()
