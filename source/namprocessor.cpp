@@ -4,6 +4,7 @@
 #include "namprocessor.h"
 #include "namids.h"
 #include "resamplingnam.h"
+#include "resamplingir.h"
 
 #include "NAM/get_dsp.h"
 
@@ -156,13 +157,10 @@ tresult PLUGIN_API NamProcessor::setupProcessing(Vst::ProcessSetup &setup)
     if (!mIrPath.empty())
         loadIr(mIrPath); // the IR is resampled at load time for the new rate
 
-    // Reported latency depends on the rate: the resampler is bypassed when the
-    // model already runs at the session rate. Without this, a rate change is
-    // not reflected until the next model load.
-    if (auto *r = static_cast<ResamplingNAM *>(mModel.get()))
-        mLatency.store(static_cast<uint32>(r->GetLatency()), std::memory_order_relaxed);
-    else
-        mLatency.store(0, std::memory_order_relaxed);
+    // Reported latency depends on the rate: the resamplers are bypassed when
+    // the model (or the IR) already runs at the session rate. Without this, a
+    // rate change is not reflected until the next load.
+    updateLatency();
 
     return kResultOk;
 }
@@ -263,13 +261,12 @@ tresult PLUGIN_API NamProcessor::process(Vst::ProcessData &data)
         // destruction happens on the message thread at the next load, not
         // here on the RT thread.
         std::swap(mModel, mPendingModel);
-        if (auto *r = static_cast<ResamplingNAM *>(mModel.get()))
-            mLatency.store(static_cast<uint32>(r->GetLatency()), std::memory_order_relaxed);
-        else
-            mLatency.store(0, std::memory_order_relaxed);
+        updateLatency();
     }
-    if (mIRPending.exchange(false, std::memory_order_acq_rel))
+    if (mIRPending.exchange(false, std::memory_order_acq_rel)) {
         std::swap(mIR, mPendingIR);
+        updateLatency();
+    }
 
     if (data.numSamples <= 0 || data.numInputs < 1 || data.numOutputs < 1)
         return kResultOk;
@@ -320,6 +317,17 @@ tresult PLUGIN_API NamProcessor::process(Vst::ProcessData &data)
     }
 
     return kResultOk;
+}
+
+//------------------------------------------------------------------------
+void NamProcessor::updateLatency()
+{
+    uint32 latency = 0;
+    if (auto *r = static_cast<ResamplingNAM *>(mModel.get()))
+        latency += static_cast<uint32>(r->GetLatency());
+    if (mIR)
+        latency += static_cast<uint32>(mIR->GetLatency());
+    mLatency.store(latency, std::memory_order_relaxed);
 }
 
 //------------------------------------------------------------------------
@@ -387,10 +395,10 @@ void NamProcessor::applyDsp(float *in, float *out, int32 numSamples)
         tsOutput = mToneStack.Process(gateOutput, 1, numSamples);
     }
 
-    // 6. IR convolution.
+    // 6. IR convolution (at no more than 48 kHz, see ResamplingIR).
     DSP_SAMPLE **irOutput = tsOutput;
     if (mIR)
-        irOutput = mIR->Process(tsOutput, 1, static_cast<size_t>(numSamples));
+        irOutput = mIR->Process(tsOutput, numSamples);
 
     // 7. double -> float with output gain and output mode.
     double modeGain = 1.0;
@@ -476,8 +484,8 @@ bool NamProcessor::loadIr(const std::string &path)
         return true;
     }
     try {
-        auto ir = std::make_unique<dsp::ImpulseResponse>(path.c_str(), mSampleRate);
-        if (ir->GetWavState() != dsp::wav::LoadReturnCode::SUCCESS)
+        auto ir = std::make_unique<ResamplingIR>(path.c_str(), mSampleRate, mMaxBlockSize);
+        if (!ir->ok())
             return false;
         mPendingIR = std::move(ir);
         mIrPath = path;

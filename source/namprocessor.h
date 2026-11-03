@@ -16,7 +16,6 @@
 
 #include "public.sdk/source/vst/vstaudioeffect.h"
 
-#include "ImpulseResponse.h"
 #include "NAM/dsp.h"
 #include "NoiseGate.h"
 #include "ToneStack.h"
@@ -30,6 +29,7 @@ namespace NAMku
 {
 
 class ResamplingNAM;
+class ResamplingIR;
 
 //------------------------------------------------------------------------
 class NamProcessor : public Steinberg::Vst::AudioEffect
@@ -66,6 +66,9 @@ public:
 private:
     void handleParameterChanges(Steinberg::Vst::IParameterChanges *changes);
     void applyDsp(float *in, float *out, Steinberg::int32 numSamples);
+    // Sums the current model's and IR's latency into mLatency. RT-safe; call
+    // where the current model or IR changes (setupProcessing, the RT swap).
+    void updateLatency();
     bool loadModel(const std::string &path);   // message thread only
     bool loadIr(const std::string &path);      // message thread only
     void applySlim(double v);                  // message thread only
@@ -92,11 +95,12 @@ private:
     std::unique_ptr<nam::DSP> mModel;
     std::atomic<bool> mModelPending{false};
 
-    std::unique_ptr<dsp::ImpulseResponse> mPendingIR;
-    std::unique_ptr<dsp::ImpulseResponse> mIR;
+    std::unique_ptr<ResamplingIR> mPendingIR;
+    std::unique_ptr<ResamplingIR> mIR;
     std::atomic<bool> mIRPending{false};
 
-    // Latency reported to the host, updated when a model swaps in.
+    // Latency reported to the host (the model's and the IR's resamplers),
+    // updated when either swaps in and when the rate changes.
     std::atomic<Steinberg::uint32> mLatency{0};
 
     dsp::noise_gate::Trigger mNoiseGateTrigger;
