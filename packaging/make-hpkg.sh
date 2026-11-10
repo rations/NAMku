@@ -8,11 +8,11 @@ set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/.." && pwd)
 VERSION=0.5.0
-REVISION=2
+REVISION=3
 STAGE="$HERE/stage"
 SDK="${VST3_SDK_DIR:-$ROOT/../VST3-renku/vst3sdk}"
 
-pkgman install -y cmake ninja gcc make || true
+pkgman install -y cmake ninja gcc make libsamplerate_devel || true
 [ -d "$SDK" ] || { echo "!! VST3 SDK not found at $SDK (set VST3_SDK_DIR)" >&2; exit 1; }
 
 cd "$ROOT"
