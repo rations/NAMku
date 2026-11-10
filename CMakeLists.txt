@@ -6,7 +6,7 @@
 #
 # Builds two ways:
 #   - standalone: point VST3_SDK_DIR at a Haiku-patched VST 3 SDK checkout
-#     (default: ../VST3-haiku/vst3sdk) and configure this directory directly;
+#     (default: ../VST3-renku/vst3sdk) and configure this directory directly;
 #   - as a subdirectory of a project that already builds that SDK (the parent
 #     must provide the SDK targets and public_sdk_SOURCE_DIR).
 
@@ -18,7 +18,7 @@ project(smtg-namku
 )
 
 if(NOT TARGET sdk)
-    set(VST3_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../VST3-haiku/vst3sdk"
+    set(VST3_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../VST3-renku/vst3sdk"
         CACHE PATH "Haiku-patched VST 3 SDK source tree")
     if(NOT EXISTS ${VST3_SDK_DIR}/CMakeLists.txt)
         message(FATAL_ERROR
@@ -140,7 +140,7 @@ target_compile_options(NAMku PRIVATE -ffast-math)
 if(DEFINED VST3_SDK_DIR)
     set(NAMKU_HAIKU_SUPPORT_DIR "${VST3_SDK_DIR}/../haiku")
 else()
-    set(NAMKU_HAIKU_SUPPORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../VST3-haiku/haiku")
+    set(NAMKU_HAIKU_SUPPORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../VST3-renku/haiku")
 endif()
 if(NOT EXISTS "${NAMKU_HAIKU_SUPPORT_DIR}/haikuplugview.h")
     message(FATAL_ERROR

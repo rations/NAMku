@@ -57,7 +57,7 @@ ninja -C build
 ```
 
 If NAMku and VST3-haiku are sibling directories, `VST3_SDK_DIR` defaults to
-`../VST3-haiku/vst3sdk`. Install by copying the built bundle to the user
+`../VST3-renku/vst3sdk`. Install by copying the built bundle to the user
 add-ons directory:
 
 ```sh
