@@ -199,12 +199,14 @@ if(HAIKU)
         add_dependencies(NAMkuApp jdbackend_jack)
     endif()
 
-    # Signature, launch flags and version, so Tracker and Deskbar treat it as
-    # an application.
+    # Signature, launch flags, version and icon, so Tracker and Deskbar treat
+    # it as an application.
     set(NAMKU_RSRC ${CMAKE_CURRENT_BINARY_DIR}/NAMku.rsrc)
     add_custom_command(OUTPUT ${NAMKU_RSRC}
-        COMMAND rc -o ${NAMKU_RSRC} ${CMAKE_CURRENT_SOURCE_DIR}/standalone/NAMku.rdef
+        COMMAND rc -I ${CMAKE_CURRENT_SOURCE_DIR}/standalone -o ${NAMKU_RSRC}
+                ${CMAKE_CURRENT_SOURCE_DIR}/standalone/NAMku.rdef
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/standalone/NAMku.rdef
+                ${CMAKE_CURRENT_SOURCE_DIR}/standalone/icons/namku_icon.rdef
         COMMENT "Compiling the NAMku app resources"
     )
     add_custom_target(NAMkuAppResources DEPENDS ${NAMKU_RSRC})
