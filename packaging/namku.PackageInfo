@@ -1,9 +1,9 @@
 name			namku
-version			0.5.0-4
+version			0.5.0-5
 architecture	x86_64
 summary			"NAMku - Neural Amp Modeler: VST3 plug-in and standalone app (RenkuOS)"
 description		"A Neural Amp Modeler (NAM) player: loads .nam amp/pedal captures and
-impulse-response .wav files. As a native VST3 plug-in for hosts such as JackDAW,
+impulse-response .wav files. As a native VST3 plug-in for hosts such as Kasen,
 and as the standalone NAMku app (Applications menu), which plays on the Media
 Kit or, with the jack package installed, on JACK. Vendors NeuralAmpModelerCore
 and AudioDSPTools (MIT) and Eigen (MPL 2.0); the Steinberg VST3 SDK is linked

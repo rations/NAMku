@@ -1,11 +1,11 @@
 # NAMku
 
-> This repository is the source of the `namku` package, part of the
-> [JackDAW stack](https://github.com/rations/jackDAW-renku) for RenkuOS. The 0.5
-> release's `install.sh` is for Haiku hrev60256; there is no RenkuOS release yet.
+> This repository is the source of the `namku` package for RenkuOS. Built
+> packages are on its [Releases](https://github.com/rations/NAMku/releases) page, and
+> [renku-audio](https://github.com/rations/renku-audio) lists the whole audio stack.
 
 A [Neural Amp Modeler](https://www.neuralampmodeler.com/) VST3 plug-in for
-**RenkuOS** (a Haiku fork) — a raw Steinberg VST3 plug-in (no JUCE, no framework),
+**RenkuOS** — a raw Steinberg VST3 plug-in (no JUCE, no framework),
 built on the port of the VST 3 SDK from
 [VST3-renku](https://github.com/rations/VST3-renku).
 
@@ -13,7 +13,7 @@ NAMku loads `.nam` neural amp models and `.wav` impulse responses and runs
 them live in a VST3 host, or on its own as the **NAMku app**. Since plug-in GUIs are not available on RenkuOS yet,
 file loading works without a GUI through a small COM-style host extension
 (`INamFileLoader`, see `source/inamfileloader.h`): hosts that know the
-interface (VST3-renku's `vst3jackhost`, JackDAW) offer *load model* /
+interface (VST3-renku's `vst3jackhost`, Kasen) offer *load model* /
 *load IR* controls; all other hosts see a normal VST3 effect.
 
 ## Standalone app
@@ -62,7 +62,7 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
 ninja -C build
 ```
 
-If NAMku and VST3-haiku are sibling directories, `VST3_SDK_DIR` defaults to
+If NAMku and VST3-renku are sibling directories, `VST3_SDK_DIR` defaults to
 `../VST3-renku/vst3sdk`. Install by copying the built bundle to the user
 add-ons directory:
 
@@ -78,11 +78,10 @@ NAMku also builds as a CMake subdirectory of VST3-renku itself.
   `~/config/non-packaged/add-ons/media/VST3`).
 - From source: `./build-from-source.sh` also installs the app to
   `~/config/non-packaged/apps` with a Deskbar entry.
-- Prebuilt package: `packaging/make-hpkg.sh` → `namku-0.5.0-1-x86_64.hpkg`
+- Prebuilt package: `packaging/make-hpkg.sh` → `namku-0.5.0-5-x86_64.hpkg`
   (`pkgman install ./namku-*.hpkg`): the plug-in, the app and its JACK add-on
-  (when jack is installed at build time). The HaikuPorts recipe in
-  `packaging/namku-0.1.0.recipe` is older and not yet validated.
-- See the [stack overview](https://github.com/rations/jackDAW-renku/blob/master/STACK.md).
+  (when jack is installed at build time).
+- See the [stack overview](https://github.com/rations/renku-audio).
 
 ## Credits and licenses
 
