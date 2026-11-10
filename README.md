@@ -19,11 +19,11 @@ interface (VST3-renku's `vst3jackhost`, JackDAW) offer *load model* /
 ## Standalone app
 
 `NAMku` (Applications in the Deskbar) plays NAMku without a DAW: one window
-with NAMku's own editor, an **Audio** menu and a status line.
+with NAMku's own editor, **NAMku** and **Audio** menus and a status line.
 
 - **Audio ▸ Media Kit / JACK** picks the audio system. The Media Kit is built
   in: NAMku becomes one media node (Cortex shows it) whose output goes to the
-  system mixer. JACK uses JackDAW's JACK backend, loaded from the
+  sound card's first two playback channels. JACK uses Kasen's JACK backend, loaded from the
   `add-ons/NAMku/jack.so` add-on only when chosen, so the app runs without the
   jack package; its output goes to the first two playback ports. If JACK is not
   running, the app says so and stays on the Media Kit.
@@ -32,6 +32,12 @@ with NAMku's own editor, an **Audio** menu and a status line.
   input.
 - The model, IR, knobs, audio system, input and window position are restored
   next time.
+- **NAMku ▸ Save preset… / Open preset…** keep amp settings (model, IR, knobs)
+  in `.kasenpreset` files (first offered in `~/config/settings/NAMku/presets`).
+  They are the presets Kasen's effects window saves and opens, so they move
+  between the app and Kasen either way; the app reads and writes them itself
+  and does not need Kasen. A preset stores where the model and IR files are,
+  not the files.
 
 The app hosts the same `NAMku.vst3` bundle a DAW loads (beside the app, or in
 `add-ons/media/VST3`), through VST3-renku's audio host code.

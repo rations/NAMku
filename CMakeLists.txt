@@ -187,7 +187,8 @@ if(HAIKU)
         standalone/settings.cpp
         PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra")
     target_include_directories(NAMkuApp PRIVATE ${NAMKU_SDK_DIR} source)
-    target_link_libraries(NAMkuApp PRIVATE sdk_hosting jdbackend be)
+    # tracker: BFilePanel (the preset open/save panels).
+    target_link_libraries(NAMkuApp PRIVATE sdk_hosting jdbackend be tracker)
     set_target_properties(NAMkuApp
         PROPERTIES
             OUTPUT_NAME NAMku
